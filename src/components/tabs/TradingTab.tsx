@@ -114,6 +114,8 @@ const TradingTab = () => {
 
       if (error) throw error;
 
+      console.log('Загруженные настройки из БД:', data);
+
       // Обновляем настройки для каждой биржи
       if (data && data.length > 0) {
         const newSettings = { ...tradingSettings };
@@ -132,6 +134,7 @@ const TradingTab = () => {
           }
         });
         setTradingSettings(newSettings);
+        console.log('Обновленные настройки:', newSettings);
       }
     } catch (error: any) {
       console.error('Ошибка загрузки настроек:', error);
@@ -147,7 +150,9 @@ const TradingTab = () => {
       
       console.log('Сохраняем настройки:', {
         exchange: selectedExchange,
-        settings: currentSettings
+        settings: currentSettings,
+        stopLoss: currentSettings.stopLoss,
+        takeProfit: currentSettings.takeProfit
       });
       
       // Используем новую функцию upsert с полем side
@@ -164,11 +169,16 @@ const TradingTab = () => {
         p_is_active: currentSettings.isActive
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Ошибка RPC:', error);
+        throw error;
+      }
+
+      console.log('Настройки успешно сохранены в БД');
 
       toast({
         title: "Успех",
-        description: `Настройки для ${selectedExchange} сохранены`,
+        description: `Настройки для ${selectedExchange} сохранены (Stop Loss: ${currentSettings.stopLoss}%, Take Profit: ${currentSettings.takeProfit}%)`,
       });
 
       // Перезагружаем настройки для проверки
@@ -331,13 +341,17 @@ const TradingTab = () => {
   // Обновление настроек для выбранной биржи
   const updateSetting = (key: string, value: string | boolean) => {
     console.log(`Обновляем настройку ${key} = ${value} для биржи ${selectedExchange}`);
-    setTradingSettings(prev => ({
-      ...prev,
-      [selectedExchange]: {
-        ...prev[selectedExchange],
-        [key]: value
-      }
-    }));
+    setTradingSettings(prev => {
+      const newSettings = {
+        ...prev,
+        [selectedExchange]: {
+          ...prev[selectedExchange],
+          [key]: value
+        }
+      };
+      console.log('Новые настройки после обновления:', newSettings[selectedExchange]);
+      return newSettings;
+    });
   };
 
   const currentSettings = tradingSettings[selectedExchange];
@@ -434,7 +448,6 @@ const TradingTab = () => {
                 onChange={(e) => updateSetting('orderAmount', e.target.value)}
                 className="bg-gray-700 border-gray-600"
                 placeholder="100"
-                type="number"
               />
             </div>
 
@@ -461,7 +474,7 @@ const TradingTab = () => {
               </Select>
             </div>
 
-            {/* Stop Loss - ПОЛЕ ВВОДА */}
+            {/* Stop Loss - ТЕКСТОВОЕ ПОЛЕ БЕЗ СЧЕТЧИКА */}
             <div>
               <Label className="text-gray-300">Stop Loss (%)</Label>
               <Input
@@ -469,12 +482,10 @@ const TradingTab = () => {
                 onChange={(e) => updateSetting('stopLoss', e.target.value)}
                 className="bg-gray-700 border-gray-600"
                 placeholder="2"
-                type="number"
-                step="0.1"
               />
             </div>
 
-            {/* Take Profit - ПОЛЕ ВВОДА */}
+            {/* Take Profit - ТЕКСТОВОЕ ПОЛЕ БЕЗ СЧЕТЧИКА */}
             <div>
               <Label className="text-gray-300">Take Profit (%)</Label>
               <Input
@@ -482,8 +493,6 @@ const TradingTab = () => {
                 onChange={(e) => updateSetting('takeProfit', e.target.value)}
                 className="bg-gray-700 border-gray-600"
                 placeholder="5"
-                type="number"
-                step="0.1"
               />
             </div>
           </div>
@@ -513,6 +522,16 @@ const TradingTab = () => {
               <div>
                 <div className="text-gray-300">Торговая пара:</div>
                 <div className="text-blue-400 font-mono">{currentSettings?.baseCurrency || 'BTC'}/{currentSettings?.quoteCurrency || 'USDT'}</div>
+              </div>
+            </div>
+            <div className="mt-2 grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <div className="text-gray-300">Stop Loss:</div>
+                <div className="text-red-400 font-mono">{currentSettings?.stopLoss || '2'}%</div>
+              </div>
+              <div>
+                <div className="text-gray-300">Take Profit:</div>
+                <div className="text-green-400 font-mono">{currentSettings?.takeProfit || '5'}%</div>
               </div>
             </div>
           </div>
@@ -638,8 +657,6 @@ const TradingTab = () => {
                 onChange={(e) => setOrderForm(prev => ({ ...prev, quantity: e.target.value }))}
                 className="bg-gray-700 border-gray-600"
                 placeholder="0.001"
-                type="number"
-                step="0.000001"
               />
             </div>
 
@@ -650,11 +667,10 @@ const TradingTab = () => {
                 onChange={(e) => setOrderForm(prev => ({ ...prev, price: e.target.value }))}
                 className="bg-gray-700 border-gray-600"
                 placeholder="30000"
-                type="number"
               />
             </div>
 
-            {/* Stop Loss для тестового ордера */}
+            {/* Stop Loss для тестового ордера - БЕЗ СЧЕТЧИКА */}
             <div>
               <Label className="text-gray-300">Stop Loss (%)</Label>
               <Input
@@ -662,12 +678,10 @@ const TradingTab = () => {
                 onChange={(e) => setOrderForm(prev => ({ ...prev, stopLoss: e.target.value }))}
                 className="bg-gray-700 border-gray-600"
                 placeholder="2"
-                type="number"
-                step="0.1"
               />
             </div>
 
-            {/* Take Profit для тестового ордера */}
+            {/* Take Profit для тестового ордера - БЕЗ СЧЕТЧИКА */}
             <div>
               <Label className="text-gray-300">Take Profit (%)</Label>
               <Input
@@ -675,8 +689,6 @@ const TradingTab = () => {
                 onChange={(e) => setOrderForm(prev => ({ ...prev, takeProfit: e.target.value }))}
                 className="bg-gray-700 border-gray-600"
                 placeholder="5"
-                type="number"
-                step="0.1"
               />
             </div>
           </div>
