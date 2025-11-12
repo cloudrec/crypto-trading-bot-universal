@@ -430,6 +430,23 @@ const TradingTab = () => {
               </Select>
             </div>
 
+            {/* Кнопка проверки баланса */}
+            <div>
+              <Label className="text-gray-300">Проверка баланса</Label>
+              <Button
+                onClick={() => {
+                  console.log("Проверяем баланс для:", selectedExchange);
+                  toast({
+                    title: "💰 Проверка баланса",
+                    description: "Проверяем баланс для " + selectedExchange.toUpperCase() + "...",
+                  });
+                }}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                💰 Проверить баланс {selectedExchange.toUpperCase()}
+              </Button>
+            </div>
+
             {/* Базовая валюта */}
             <div>
               <Label className="text-gray-300">Базовая валюта</Label>
