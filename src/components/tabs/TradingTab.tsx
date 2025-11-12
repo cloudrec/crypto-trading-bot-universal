@@ -85,7 +85,9 @@ const TradingTab = () => {
     symbol: 'BTCUSDT',
     side: 'Buy',
     quantity: '0.001',
-    price: '30000'
+    price: '30000',
+    stopLoss: '2',
+    takeProfit: '5'
   });
 
   const exchanges = [
@@ -227,7 +229,9 @@ const TradingTab = () => {
           symbol: orderForm.symbol,
           side: orderForm.side,
           quantity: orderForm.quantity,
-          price: orderForm.price
+          price: orderForm.price,
+          stopLoss: orderForm.stopLoss,
+          takeProfit: orderForm.takeProfit
         }
       });
 
@@ -326,6 +330,7 @@ const TradingTab = () => {
 
   // Обновление настроек для выбранной биржи
   const updateSetting = (key: string, value: string | boolean) => {
+    console.log(`Обновляем настройку ${key} = ${value} для биржи ${selectedExchange}`);
     setTradingSettings(prev => ({
       ...prev,
       [selectedExchange]: {
@@ -429,6 +434,7 @@ const TradingTab = () => {
                 onChange={(e) => updateSetting('orderAmount', e.target.value)}
                 className="bg-gray-700 border-gray-600"
                 placeholder="100"
+                type="number"
               />
             </div>
 
@@ -463,6 +469,8 @@ const TradingTab = () => {
                 onChange={(e) => updateSetting('stopLoss', e.target.value)}
                 className="bg-gray-700 border-gray-600"
                 placeholder="2"
+                type="number"
+                step="0.1"
               />
             </div>
 
@@ -474,6 +482,8 @@ const TradingTab = () => {
                 onChange={(e) => updateSetting('takeProfit', e.target.value)}
                 className="bg-gray-700 border-gray-600"
                 placeholder="5"
+                type="number"
+                step="0.1"
               />
             </div>
           </div>
@@ -628,6 +638,8 @@ const TradingTab = () => {
                 onChange={(e) => setOrderForm(prev => ({ ...prev, quantity: e.target.value }))}
                 className="bg-gray-700 border-gray-600"
                 placeholder="0.001"
+                type="number"
+                step="0.000001"
               />
             </div>
 
@@ -638,6 +650,33 @@ const TradingTab = () => {
                 onChange={(e) => setOrderForm(prev => ({ ...prev, price: e.target.value }))}
                 className="bg-gray-700 border-gray-600"
                 placeholder="30000"
+                type="number"
+              />
+            </div>
+
+            {/* Stop Loss для тестового ордера */}
+            <div>
+              <Label className="text-gray-300">Stop Loss (%)</Label>
+              <Input
+                value={orderForm.stopLoss}
+                onChange={(e) => setOrderForm(prev => ({ ...prev, stopLoss: e.target.value }))}
+                className="bg-gray-700 border-gray-600"
+                placeholder="2"
+                type="number"
+                step="0.1"
+              />
+            </div>
+
+            {/* Take Profit для тестового ордера */}
+            <div>
+              <Label className="text-gray-300">Take Profit (%)</Label>
+              <Input
+                value={orderForm.takeProfit}
+                onChange={(e) => setOrderForm(prev => ({ ...prev, takeProfit: e.target.value }))}
+                className="bg-gray-700 border-gray-600"
+                placeholder="5"
+                type="number"
+                step="0.1"
               />
             </div>
           </div>
