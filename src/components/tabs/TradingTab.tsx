@@ -23,6 +23,7 @@ const TradingTab = () => {
       quoteCurrency: 'USDT',
       orderAmount: '100',
       leverage: '1',
+      side: 'Buy',
       stopLoss: '2',
       takeProfit: '5',
       isActive: false
@@ -32,6 +33,7 @@ const TradingTab = () => {
       quoteCurrency: 'USDT',
       orderAmount: '100',
       leverage: '1',
+      side: 'Buy',
       stopLoss: '2',
       takeProfit: '5',
       isActive: false
@@ -41,6 +43,7 @@ const TradingTab = () => {
       quoteCurrency: 'USDT',
       orderAmount: '100',
       leverage: '1',
+      side: 'Buy',
       stopLoss: '2',
       takeProfit: '5',
       isActive: false
@@ -50,6 +53,7 @@ const TradingTab = () => {
       quoteCurrency: 'USDT',
       orderAmount: '100',
       leverage: '1',
+      side: 'Buy',
       stopLoss: '2',
       takeProfit: '5',
       isActive: false
@@ -59,6 +63,7 @@ const TradingTab = () => {
       quoteCurrency: 'USDT',
       orderAmount: '100',
       leverage: '1',
+      side: 'Buy',
       stopLoss: '2',
       takeProfit: '5',
       isActive: false
@@ -68,6 +73,7 @@ const TradingTab = () => {
       quoteCurrency: 'USDT',
       orderAmount: '100',
       leverage: '1',
+      side: 'Buy',
       stopLoss: '2',
       takeProfit: '5',
       isActive: false
@@ -116,6 +122,7 @@ const TradingTab = () => {
               quoteCurrency: setting.quote_currency || 'USDT',
               orderAmount: setting.order_amount || '100',
               leverage: setting.leverage || '1',
+              side: setting.side || 'Buy',
               stopLoss: setting.stop_loss || '2',
               takeProfit: setting.take_profit || '5',
               isActive: setting.is_active || false
@@ -129,30 +136,31 @@ const TradingTab = () => {
     }
   };
 
-  // Сохранение настроек для выбранной биржи
+  // Сохранение настроек для выбранной биржи с использованием новой функции
   const saveTradingSettings = async () => {
     setLoading(prev => ({ ...prev, save: true }));
     
     try {
       const currentSettings = tradingSettings[selectedExchange];
       
-      // Используем upsert для перезаписи настроек
-      const { error } = await supabase
-        .from('trading_settings_2025_11_12_05_30')
-        .upsert({
-          user_id: user?.id,
-          exchange: selectedExchange,
-          base_currency: currentSettings.baseCurrency,
-          quote_currency: currentSettings.quoteCurrency,
-          order_amount: currentSettings.orderAmount,
-          leverage: currentSettings.leverage,
-          stop_loss: currentSettings.stopLoss,
-          take_profit: currentSettings.takeProfit,
-          is_active: currentSettings.isActive,
-          updated_at: new Date().toISOString()
-        }, {
-          onConflict: 'user_id,exchange'
-        });
+      console.log('Сохраняем настройки:', {
+        exchange: selectedExchange,
+        settings: currentSettings
+      });
+      
+      // Используем новую функцию upsert с полем side
+      const { error } = await supabase.rpc('upsert_trading_settings_with_side_2025_11_12_09_35', {
+        p_user_id: user?.id,
+        p_exchange: selectedExchange,
+        p_base_currency: currentSettings.baseCurrency,
+        p_quote_currency: currentSettings.quoteCurrency,
+        p_order_amount: currentSettings.orderAmount,
+        p_leverage: currentSettings.leverage,
+        p_side: currentSettings.side,
+        p_stop_loss: currentSettings.stopLoss,
+        p_take_profit: currentSettings.takeProfit,
+        p_is_active: currentSettings.isActive
+      });
 
       if (error) throw error;
 
@@ -167,6 +175,7 @@ const TradingTab = () => {
       }, 500);
 
     } catch (error: any) {
+      console.error('Ошибка сохранения:', error);
       toast({
         title: "Ошибка",
         description: `Ошибка сохранения: ${error.message}`,
@@ -262,24 +271,20 @@ const TradingTab = () => {
       }
     }));
 
-    // Сохраняем в базу данных
+    // Сохраняем в базу данных используя новую функцию
     try {
-      const { error } = await supabase
-        .from('trading_settings_2025_11_12_05_30')
-        .upsert({
-          user_id: user?.id,
-          exchange: selectedExchange,
-          base_currency: currentSettings.baseCurrency,
-          quote_currency: currentSettings.quoteCurrency,
-          order_amount: currentSettings.orderAmount,
-          leverage: currentSettings.leverage,
-          stop_loss: currentSettings.stopLoss,
-          take_profit: currentSettings.takeProfit,
-          is_active: newActiveState,
-          updated_at: new Date().toISOString()
-        }, {
-          onConflict: 'user_id,exchange'
-        });
+      const { error } = await supabase.rpc('upsert_trading_settings_with_side_2025_11_12_09_35', {
+        p_user_id: user?.id,
+        p_exchange: selectedExchange,
+        p_base_currency: currentSettings.baseCurrency,
+        p_quote_currency: currentSettings.quoteCurrency,
+        p_order_amount: currentSettings.orderAmount,
+        p_leverage: currentSettings.leverage,
+        p_side: currentSettings.side,
+        p_stop_loss: currentSettings.stopLoss,
+        p_take_profit: currentSettings.takeProfit,
+        p_is_active: newActiveState
+      });
 
       if (error) throw error;
 
@@ -289,7 +294,7 @@ const TradingTab = () => {
         await supabase.functions.invoke('funding_arbitrage_bot_2025_11_12_05_20', {
           body: { 
             action: 'send_notification',
-            message: `🤖 Торговый бот ${newActiveState ? 'ЗАПУЩЕН' : 'ОСТАНОВЛЕН'} на ${selectedExchange}\n\n📊 Параметры:\n• Пара: ${currentSettings.baseCurrency}/${currentSettings.quoteCurrency}\n• Сумма ордера: ${currentSettings.orderAmount} USDT\n• Плечо: x${currentSettings.leverage}\n• Эффективная сумма: ${leverageAmount.toFixed(2)} USDT\n• Stop Loss: ${currentSettings.stopLoss}%\n• Take Profit: ${currentSettings.takeProfit}%`
+            message: `🤖 Торговый бот ${newActiveState ? 'ЗАПУЩЕН' : 'ОСТАНОВЛЕН'} на ${selectedExchange}\n\n📊 Параметры:\n• Пара: ${currentSettings.baseCurrency}/${currentSettings.quoteCurrency}\n• Сторона: ${currentSettings.side === 'Buy' ? '🟢 Покупка' : '🔴 Продажа'}\n• Сумма ордера: ${currentSettings.orderAmount} USDT\n• Плечо: x${currentSettings.leverage}\n• Эффективная сумма: ${leverageAmount.toFixed(2)} USDT\n• Stop Loss: ${currentSettings.stopLoss}%\n• Take Profit: ${currentSettings.takeProfit}%`
           }
         });
       } catch (telegramError) {
@@ -370,24 +375,15 @@ const TradingTab = () => {
               </Select>
             </div>
 
-            {/* Базовая валюта */}
+            {/* Базовая валюта - ПОЛЕ ВВОДА */}
             <div>
               <Label className="text-gray-300">Базовая валюта</Label>
-              <Select 
-                value={currentSettings?.baseCurrency || 'BTC'} 
-                onValueChange={(value) => updateSetting('baseCurrency', value)}
-              >
-                <SelectTrigger className="bg-gray-700 border-gray-600">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="bg-gray-700">
-                  <SelectItem value="BTC">BTC</SelectItem>
-                  <SelectItem value="ETH">ETH</SelectItem>
-                  <SelectItem value="BNB">BNB</SelectItem>
-                  <SelectItem value="ADA">ADA</SelectItem>
-                  <SelectItem value="SOL">SOL</SelectItem>
-                </SelectContent>
-              </Select>
+              <Input
+                value={currentSettings?.baseCurrency || 'BTC'}
+                onChange={(e) => updateSetting('baseCurrency', e.target.value.toUpperCase())}
+                className="bg-gray-700 border-gray-600"
+                placeholder="BTC"
+              />
             </div>
 
             {/* Котируемая валюта */}
@@ -404,6 +400,23 @@ const TradingTab = () => {
                   <SelectItem value="USDT">USDT</SelectItem>
                   <SelectItem value="USDC">USDC</SelectItem>
                   <SelectItem value="BUSD">BUSD</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Сторона - КАК В ТЕСТОВОМ ОРДЕРЕ */}
+            <div>
+              <Label className="text-gray-300">Сторона</Label>
+              <Select 
+                value={currentSettings?.side || 'Buy'} 
+                onValueChange={(value) => updateSetting('side', value)}
+              >
+                <SelectTrigger className="bg-gray-700 border-gray-600">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-gray-700">
+                  <SelectItem value="Buy">🟢 Покупка</SelectItem>
+                  <SelectItem value="Sell">🔴 Продажа</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -442,7 +455,7 @@ const TradingTab = () => {
               </Select>
             </div>
 
-            {/* Stop Loss */}
+            {/* Stop Loss - ПОЛЕ ВВОДА */}
             <div>
               <Label className="text-gray-300">Stop Loss (%)</Label>
               <Input
@@ -453,7 +466,7 @@ const TradingTab = () => {
               />
             </div>
 
-            {/* Take Profit */}
+            {/* Take Profit - ПОЛЕ ВВОДА */}
             <div>
               <Label className="text-gray-300">Take Profit (%)</Label>
               <Input
@@ -468,7 +481,13 @@ const TradingTab = () => {
           {/* Расчет эффективной суммы */}
           <div className="bg-gray-700 p-4 rounded">
             <h4 className="text-white font-semibold mb-2">💰 Расчет позиции:</h4>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
+              <div>
+                <div className="text-gray-300">Сторона:</div>
+                <div className={`font-mono ${currentSettings?.side === 'Buy' ? 'text-green-400' : 'text-red-400'}`}>
+                  {currentSettings?.side === 'Buy' ? '🟢 Покупка' : '🔴 Продажа'}
+                </div>
+              </div>
               <div>
                 <div className="text-gray-300">Сумма ордера:</div>
                 <div className="text-white font-mono">{currentSettings?.orderAmount || '100'} USDT</div>
