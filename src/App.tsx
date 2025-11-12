@@ -13,6 +13,7 @@ import { Textarea } from '@/components/ui/textarea';
 const QuickApiSetup = () => {
   const { user } = useAuth();
   const [diagnosis, setDiagnosis] = useState<any>(null);
+  const [keysInDb, setKeysInDb] = useState<any>(null);
   const [loading, setLoading] = useState<Record<string, boolean>>({});
   const [logs, setLogs] = useState<string[]>([]);
   const [apiKeys, setApiKeys] = useState({
@@ -64,6 +65,70 @@ const QuickApiSetup = () => {
     }
   };
 
+  const showKeysInDb = async () => {
+    setLoading(prev => ({ ...prev, show_keys: true }));
+    addLog('📋 Показываем ключи в базе данных...');
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('simple_keys_manager_2025_11_12_07_30', {
+        body: { action: 'show_keys' }
+      });
+
+      if (error) {
+        console.error('❌ Ошибка показа ключей:', error);
+        throw error;
+      }
+
+      console.log('✅ Ключи получены:', data);
+      setKeysInDb(data.result);
+      
+      addLog(`✅ В базе данных: ${data.result.total_keys} ключей`);
+      
+      if (data.result.keys.length > 0) {
+        data.result.keys.forEach((key: any) => {
+          addLog(`📋 ${key.exchange}: ${key.api_key_preview} (${key.api_key_length} символов) ${key.is_placeholder ? '🟡 ТЕСТОВЫЙ' : '✅ РЕАЛЬНЫЙ'}`);
+        });
+      } else {
+        addLog('📋 Ключи в базе данных не найдены');
+      }
+      
+    } catch (error: any) {
+      console.error('❌ Ошибка показа ключей:', error);
+      addLog(`❌ Ошибка показа ключей: ${error.message}`);
+    } finally {
+      setLoading(prev => ({ ...prev, show_keys: false }));
+    }
+  };
+
+  const addTestKey = async (exchange: string) => {
+    setLoading(prev => ({ ...prev, [`test_${exchange}`]: true }));
+    addLog(`➕ Добавляем тестовый ключ для ${exchange}...`);
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('simple_keys_manager_2025_11_12_07_30', {
+        body: { 
+          action: 'add_test_key',
+          exchange: exchange
+        }
+      });
+
+      if (error) throw error;
+
+      addLog(`✅ Тестовый ключ для ${exchange} добавлен`);
+      
+      // Обновляем отображение
+      setTimeout(() => {
+        showKeysInDb();
+        runDiagnosis();
+      }, 500);
+      
+    } catch (error: any) {
+      addLog(`❌ Ошибка добавления тестового ключа ${exchange}: ${error.message}`);
+    } finally {
+      setLoading(prev => ({ ...prev, [`test_${exchange}`]: false }));
+    }
+  };
+
   const saveApiKey = async (exchange: string) => {
     const keyData = apiKeys[exchange as keyof typeof apiKeys];
     
@@ -81,7 +146,7 @@ const QuickApiSetup = () => {
     addLog(`💾 Сохраняем ключи для ${exchange}...`);
     
     try {
-      // Прямое обновление в базе данных (без updated_at - обновляется автоматически)
+      // Прямое обновление в базе данных
       const { error } = await supabase
         .from('api_keys_new')
         .upsert({
@@ -106,14 +171,46 @@ const QuickApiSetup = () => {
         [exchange]: { ...prev[exchange as keyof typeof prev], status: 'configured' }
       }));
       
-      // Перезапускаем диагностику
-      setTimeout(() => runDiagnosis(), 1000);
+      // Обновляем отображение
+      setTimeout(() => {
+        showKeysInDb();
+        runDiagnosis();
+      }, 500);
       
     } catch (error: any) {
       console.error('❌ Ошибка сохранения:', error);
       addLog(`❌ ${exchange}: ${error.message}`);
     } finally {
       setLoading(prev => ({ ...prev, [`save_${exchange}`]: false }));
+    }
+  };
+
+  const clearAllKeys = async () => {
+    if (!confirm('Удалить все API ключи?')) return;
+
+    setLoading(prev => ({ ...prev, clear: true }));
+    addLog('🗑️ Удаляем все API ключи...');
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('simple_keys_manager_2025_11_12_07_30', {
+        body: { action: 'clear_all' }
+      });
+
+      if (error) throw error;
+
+      addLog('✅ Все API ключи удалены');
+      setDiagnosis(null);
+      setKeysInDb(null);
+      setApiKeys({
+        bybit: { api_key: '', api_secret: '', status: 'empty' },
+        binance: { api_key: '', api_secret: '', status: 'empty' },
+        gate: { api_key: '', api_secret: '', passphrase: '', status: 'empty' }
+      });
+      
+    } catch (error: any) {
+      addLog(`❌ Ошибка удаления: ${error.message}`);
+    } finally {
+      setLoading(prev => ({ ...prev, clear: false }));
     }
   };
 
@@ -150,35 +247,6 @@ const QuickApiSetup = () => {
       addLog(`❌ Тест ${exchange}: ${error.message}`);
     } finally {
       setLoading(prev => ({ ...prev, [`test_${exchange}`]: false }));
-    }
-  };
-
-  const clearAllKeys = async () => {
-    if (!confirm('Удалить все API ключи?')) return;
-
-    setLoading(prev => ({ ...prev, clear: true }));
-    addLog('🗑️ Удаляем все API ключи...');
-    
-    try {
-      const { error } = await supabase
-        .from('api_keys_new')
-        .delete()
-        .eq('user_id', user?.id);
-
-      if (error) throw error;
-
-      addLog('✅ Все API ключи удалены');
-      setDiagnosis(null);
-      setApiKeys({
-        bybit: { api_key: '', api_secret: '', status: 'empty' },
-        binance: { api_key: '', api_secret: '', status: 'empty' },
-        gate: { api_key: '', api_secret: '', passphrase: '', status: 'empty' }
-      });
-      
-    } catch (error: any) {
-      addLog(`❌ Ошибка удаления: ${error.message}`);
-    } finally {
-      setLoading(prev => ({ ...prev, clear: false }));
     }
   };
 
@@ -225,33 +293,10 @@ const QuickApiSetup = () => {
     }
   };
 
-  const showCurrentKeys = async () => {
-    addLog('🔍 Показываем текущие ключи в базе данных...');
-    
-    try {
-      const { data, error } = await supabase
-        .from('api_keys_new')
-        .select('*')
-        .eq('user_id', user?.id);
-
-      if (error) throw error;
-
-      if (data && data.length > 0) {
-        data.forEach(key => {
-          addLog(`📋 ${key.exchange}: ${key.api_key?.substring(0, 8)}... (${key.api_key?.length} символов)`);
-        });
-      } else {
-        addLog('📋 Ключи в базе данных не найдены');
-      }
-      
-    } catch (error: any) {
-      addLog(`❌ Ошибка получения ключей: ${error.message}`);
-    }
-  };
-
   // Автоматическая диагностика при загрузке
   useEffect(() => {
     runDiagnosis();
+    showKeysInDb();
   }, []);
 
   const exchanges = [
@@ -297,82 +342,107 @@ const QuickApiSetup = () => {
         <Card className="bg-gray-800 border-gray-700">
           <CardHeader>
             <CardTitle className="text-white text-center">
-              🔑 Быстрая Настройка API Ключей
+              🔑 Управление API Ключами
             </CardTitle>
           </CardHeader>
           <CardContent className="text-center">
             <p className="text-gray-300 mb-4">
-              Добавьте реальные API ключи для торговли на биржах
+              Добавьте реальные API ключи или протестируйте с тестовыми
             </p>
-            <div className="space-x-2 space-y-2">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
               <Button 
                 onClick={runDiagnosis} 
                 disabled={loading.diagnose}
                 className="bg-blue-600 hover:bg-blue-700"
               >
-                {loading.diagnose ? '🔄 Проверка...' : '🔍 Проверить ключи'}
+                {loading.diagnose ? '🔄' : '🔍'} Диагностика
               </Button>
               <Button 
-                onClick={showCurrentKeys}
+                onClick={showKeysInDb}
+                disabled={loading.show_keys}
                 className="bg-purple-600 hover:bg-purple-700"
               >
-                📋 Показать ключи в БД
+                {loading.show_keys ? '🔄' : '📋'} Ключи в БД
               </Button>
               <Button 
                 onClick={testTradingFunctions}
                 className="bg-green-600 hover:bg-green-700"
               >
-                🚀 Тест торговых функций
+                🚀 Тест торговли
               </Button>
               <Button 
                 onClick={clearAllKeys} 
                 disabled={loading.clear}
                 variant="destructive"
               >
-                {loading.clear ? '🔄 Удаление...' : '🗑️ Очистить все'}
+                {loading.clear ? '🔄' : '🗑️'} Очистить
               </Button>
             </div>
           </CardContent>
         </Card>
 
-        {/* Краткая диагностика */}
-        {diagnosis && (
-          <Card className="bg-gray-800 border-gray-700">
-            <CardHeader>
-              <CardTitle className="text-white">📊 Статус API Ключей</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="bg-gray-700 p-4 rounded text-center">
-                  <div className="text-2xl font-bold text-blue-400">{diagnosis.total_keys}</div>
-                  <div className="text-sm text-gray-300">Всего ключей</div>
-                </div>
-                <div className="bg-gray-700 p-4 rounded text-center">
-                  <div className="text-2xl font-bold text-red-400">{diagnosis.issues.length}</div>
-                  <div className="text-sm text-gray-300">Проблем</div>
-                </div>
-                <div className="bg-gray-700 p-4 rounded text-center">
-                  <div className="text-2xl font-bold text-green-400">
-                    {Object.keys(diagnosis.keys_by_exchange).filter(k => !diagnosis.keys_by_exchange[k].is_placeholder).length}
+        {/* Статистика */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Диагностика */}
+          {diagnosis && (
+            <Card className="bg-gray-800 border-gray-700">
+              <CardHeader>
+                <CardTitle className="text-white">📊 Диагностика</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="bg-gray-700 p-3 rounded text-center">
+                    <div className="text-xl font-bold text-blue-400">{diagnosis.total_keys}</div>
+                    <div className="text-xs text-gray-300">Всего</div>
                   </div>
-                  <div className="text-sm text-gray-300">Реальных ключей</div>
+                  <div className="bg-gray-700 p-3 rounded text-center">
+                    <div className="text-xl font-bold text-red-400">{diagnosis.issues.length}</div>
+                    <div className="text-xs text-gray-300">Проблем</div>
+                  </div>
+                  <div className="bg-gray-700 p-3 rounded text-center">
+                    <div className="text-xl font-bold text-green-400">
+                      {Object.keys(diagnosis.keys_by_exchange).filter(k => !diagnosis.keys_by_exchange[k].is_placeholder).length}
+                    </div>
+                    <div className="text-xs text-gray-300">Реальных</div>
+                  </div>
                 </div>
-              </div>
-              
-              {diagnosis.issues.length > 0 && (
-                <div className="mt-4 bg-red-900/20 p-4 rounded">
-                  <h4 className="text-red-400 font-semibold mb-2">⚠️ Найденные проблемы:</h4>
-                  {diagnosis.issues.slice(0, 3).map((issue: string, index: number) => (
-                    <div key={index} className="text-sm text-red-300">• {issue}</div>
-                  ))}
-                  {diagnosis.issues.length > 3 && (
-                    <div className="text-sm text-gray-400">... и еще {diagnosis.issues.length - 3} проблем</div>
-                  )}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Ключи в БД */}
+          {keysInDb && (
+            <Card className="bg-gray-800 border-gray-700">
+              <CardHeader>
+                <CardTitle className="text-white">📋 Ключи в БД</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {keysInDb.keys.length > 0 ? (
+                  <div className="space-y-2">
+                    {keysInDb.keys.map((key: any, index: number) => (
+                      <div key={index} className="bg-gray-700 p-2 rounded text-sm">
+                        <div className="flex justify-between items-center">
+                          <span className="font-semibold">{key.exchange}</span>
+                          <Badge variant={key.is_placeholder ? "secondary" : "default"}>
+                            {key.is_placeholder ? "🟡 Тест" : "✅ Реал"}
+                          </Badge>
+                        </div>
+                        <div className="text-xs text-gray-300">
+                          Key: {key.api_key_preview} ({key.api_key_length})
+                        </div>
+                        <div className="text-xs text-gray-300">
+                          Secret: {key.api_secret_preview} ({key.api_secret_length})
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-gray-400 text-center">Ключи не найдены</p>
+                )}
+              </CardContent>
+            </Card>
+          )}
+        </div>
 
         {/* Настройка ключей для каждой биржи */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -444,32 +514,27 @@ const QuickApiSetup = () => {
                     disabled={loading[`save_${exchange.id}`]}
                     className={`w-full ${exchange.color} hover:opacity-80`}
                   >
-                    {loading[`save_${exchange.id}`] ? (
-                      <div className="flex items-center">
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                        Сохранение...
-                      </div>
-                    ) : (
-                      `💾 Сохранить ключи`
-                    )}
+                    {loading[`save_${exchange.id}`] ? '🔄 Сохранение...' : '💾 Сохранить'}
                   </Button>
                   
-                  {apiKeys[exchange.id as keyof typeof apiKeys].status !== 'empty' && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      onClick={() => addTestKey(exchange.id)}
+                      disabled={loading[`test_${exchange.id}`]}
+                      variant="outline"
+                      className="border-gray-600 text-xs"
+                    >
+                      {loading[`test_${exchange.id}`] ? '🔄' : '➕ Тест'}
+                    </Button>
+                    
                     <Button
                       onClick={() => testConnection(exchange.id)}
                       disabled={loading[`test_${exchange.id}`]}
-                      className="w-full bg-green-600 hover:bg-green-700"
+                      className="bg-green-600 hover:bg-green-700 text-xs"
                     >
-                      {loading[`test_${exchange.id}`] ? (
-                        <div className="flex items-center">
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                          Тестируем...
-                        </div>
-                      ) : (
-                        `🧪 Тест подключения`
-                      )}
+                      🧪 Проверить
                     </Button>
-                  )}
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -504,63 +569,6 @@ const QuickApiSetup = () => {
             </Button>
           </CardContent>
         </Card>
-
-        {/* Инструкции */}
-        <Card className="bg-gray-800 border-gray-700">
-          <CardHeader>
-            <CardTitle className="text-white">📖 Инструкции по получению API ключей</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div>
-                <h3 className="text-yellow-400 font-semibold mb-2">🟡 Bybit</h3>
-                <ol className="text-sm text-gray-300 space-y-1">
-                  <li>1. Войдите на bybit.com</li>
-                  <li>2. API Management → Create New Key</li>
-                  <li>3. Включите: Spot Trading, Derivatives</li>
-                  <li>4. Скопируйте API Key и Secret</li>
-                </ol>
-              </div>
-              <div>
-                <h3 className="text-orange-400 font-semibold mb-2">🟨 Binance</h3>
-                <ol className="text-sm text-gray-300 space-y-1">
-                  <li>1. Войдите на binance.com</li>
-                  <li>2. API Management → Create API</li>
-                  <li>3. Включите: Futures Trading</li>
-                  <li>4. Скопируйте API Key и Secret</li>
-                </ol>
-              </div>
-              <div>
-                <h3 className="text-blue-400 font-semibold mb-2">🟦 Gate.io</h3>
-                <ol className="text-sm text-gray-300 space-y-1">
-                  <li>1. Войдите на gate.io</li>
-                  <li>2. API Keys → Create API Key</li>
-                  <li>3. Включите: Futures Trading</li>
-                  <li>4. Установите Passphrase</li>
-                  <li>5. Скопируйте все данные</li>
-                </ol>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Управление */}
-        <div className="text-center space-x-4">
-          <Button 
-            onClick={() => window.location.reload()} 
-            className="bg-green-600 hover:bg-green-700"
-          >
-            🔄 Перезагрузить
-          </Button>
-          <Button 
-            onClick={() => {
-              alert('После настройки API ключей можно переходить к торговому тестированию');
-            }} 
-            className="bg-blue-600 hover:bg-blue-700"
-          >
-            🚀 К торговому тестированию
-          </Button>
-        </div>
       </div>
     </div>
   );
