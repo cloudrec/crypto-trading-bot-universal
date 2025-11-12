@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { Eye, EyeOff, Key, Shield, CheckCircle, XCircle, RefreshCw } from 'lucide-react';
+import { Eye, EyeOff, Key, Shield, CheckCircle, XCircle, RefreshCw, AlertTriangle } from 'lucide-react';
 
 interface ApiKeysManagerProps {
   onKeysUpdate?: () => void;
@@ -280,6 +280,69 @@ const ApiKeysManager: React.FC<ApiKeysManagerProps> = ({ onKeysUpdate }) => {
     }
   };
 
+  // Универсальная диагностика всех бирж
+  const runUniversalDiagnostics = async () => {
+    setLoading(prev => ({ ...prev, universal_diagnostics: true }));
+    
+    try {
+      console.log('🔍 Запускаем универсальную диагностику...');
+      
+      const { data, error } = await supabase.functions.invoke('universal_exchange_diagnostics_2025_11_12_11_40', {
+        body: { action: 'diagnose_all' }
+      });
+      
+      if (error) {
+        console.error('❌ Ошибка диагностики:', error);
+        toast({
+          title: "Ошибка диагностики",
+          description: error.message,
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      console.log('📊 Результаты универсальной диагностики:', data);
+      
+      // Показываем детальные результаты
+      if (data?.results?.diagnostics) {
+        console.log('🔍 ДЕТАЛЬНАЯ ДИАГНОСТИКА ВСЕХ БИРЖ:');
+        console.log(`📊 Общая статистика: ${data.total_keys_in_db} ключей в БД`);
+        console.log(`📊 Биржи в БД: ${data.exchanges_in_db.join(', ')}`);
+        console.log('---');
+        
+        Object.entries(data.results.diagnostics).forEach(([exchange, result]: [string, any]) => {
+          console.log(`🔍 ДИАГНОСТИКА ${exchange.toUpperCase()}:`);
+          console.log(`  ✅ Успех: ${result.success}`);
+          console.log(`  📊 HTTP статус: ${result.status || 'нет данных'}`);
+          console.log(`  ❌ Ошибка: ${result.error || 'нет'}`);
+          console.log(`  🔑 Ключ API: ${result.database_record?.api_key_length || 0} символов`);
+          console.log(`  🔐 Секрет: ${result.database_record?.secret_length || 0} символов`);
+          console.log(`  🔑 Passphrase: ${result.database_record?.has_passphrase ? 'есть' : 'нет'}`);
+          console.log(`  📅 Создан: ${result.database_record?.created_at || 'нет данных'}`);
+          if (result.response) {
+            console.log(`  📊 Ответ API:`, result.response);
+          }
+          console.log('---');
+        });
+      }
+      
+      toast({
+        title: "Диагностика завершена",
+        description: `Проверено ${Object.keys(data?.results?.diagnostics || {}).length} бирж. Смотрите консоль.`,
+      });
+      
+    } catch (error: any) {
+      console.error('💥 Ошибка диагностики:', error);
+      toast({
+        title: "Ошибка диагностики",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(prev => ({ ...prev, universal_diagnostics: false }));
+    }
+  };
+
   // Проверка подключения к бирже
   const checkConnection = async (exchange: string) => {
     setLoading(prev => ({ ...prev, [`test_${exchange}`]: true }));
@@ -419,6 +482,16 @@ const ApiKeysManager: React.FC<ApiKeysManagerProps> = ({ onKeysUpdate }) => {
               variant="outline"
             >
               {loading.checkAll ? '🔄 Проверка...' : '🔍 Проверить все подключения'}
+            </Button>
+            
+            <Button
+              onClick={runUniversalDiagnostics}
+              disabled={loading.universal_diagnostics}
+              variant="outline"
+              className="bg-red-600 hover:bg-red-700 text-white border-red-500"
+            >
+              {loading.universal_diagnostics ? <RefreshCw className="w-4 h-4 animate-spin mr-2" /> : <AlertTriangle className="w-4 h-4 mr-2" />}
+              {loading.universal_diagnostics ? '🔍 Диагностика...' : '🚫 Диагностика ошибок'}
             </Button>
           </div>
         </CardContent>
