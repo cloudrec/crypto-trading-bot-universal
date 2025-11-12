@@ -13,8 +13,8 @@ import SubscriptionManager from '@/components/SubscriptionManager';
 import AdminPanel from '@/components/AdminPanel';
 import ArbitrageScanner from "@/components/ArbitrageScanner";
 import TriangularArbitrage from "@/components/TriangularArbitrage";
+import FundingInfo from "@/components/FundingInfo";
 import FundingBot from "@/components/FundingBot";
-import TradingForm from "@/components/TradingForm";
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -310,7 +310,121 @@ export default function TradingDashboard() {
           </TabsList>
 
           {/* Trading Tab */}
-<TradingForm               selectedExchange={selectedExchange}              onExchangeChange={handleExchangeChange}              onTradingAction={handleTradingAction}              currentBalance={currentBalance}              loading={loading}              positions={positions}            />
+          <TabsContent value="trading" className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* Balance Card */}
+              <Card className="bg-gray-800 border-gray-700">
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2">
+                    <DollarSign className="h-5 w-5 text-green-400" />
+                    <span>Баланс {selectedExchange.toUpperCase()}</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {currentBalance ? (
+                    <div className="space-y-2">
+                      <div className="flex justify-between">
+                        <span>USDT:</span>
+                        <span className="font-mono">{currentBalance.balance?.USDT?.toFixed(2) || '0.00'}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Доступно:</span>
+                        <span className="font-mono text-green-400">{currentBalance.balance?.available?.toFixed(2) || '0.00'}</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-gray-400">Нажмите "Проверить баланс"</p>
+                  )}
+                  <Button 
+                    className="w-full mt-4" 
+                    onClick={() => handleTradingAction('check_balance')}
+                    disabled={loading}
+                  >
+                    <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                    Проверить баланс
+                  </Button>
+                </CardContent>
+              </Card>
+
+              {/* Quick Actions */}
+              <Card className="bg-gray-800 border-gray-700">
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2">
+                    <Zap className="h-5 w-5 text-yellow-400" />
+                    <span>Быстрые действия</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <Button 
+                    className="w-full bg-green-600 hover:bg-green-700" 
+                    onClick={() => handleTradingAction('start_funding_arbitrage')}
+                    disabled={loading}
+                  >
+                    <Play className="h-4 w-4 mr-2" />
+                    Запустить арбитраж
+                  </Button>
+                  <Button 
+                    className="w-full bg-blue-600 hover:bg-blue-700" 
+                    onClick={() => handleTradingAction('test_order', true)}
+                    disabled={loading}
+                  >
+                    <CheckCircle className="h-4 w-4 mr-2" />
+                    Тестовый ордер
+                  </Button>
+                  <Button 
+                    className="w-full bg-orange-600 hover:bg-orange-700" 
+                    onClick={() => handleTradingAction('cancel_all_orders')}
+                    disabled={loading}
+                  >
+                    <XCircle className="h-4 w-4 mr-2" />
+                    Отменить ордера
+                  </Button>
+                  <Button 
+                    className="w-full bg-red-600 hover:bg-red-700" 
+                    onClick={() => handleTradingAction('close_all_positions')}
+                    disabled={loading}
+                  >
+                    <Square className="h-4 w-4 mr-2" />
+                    Закрыть позиции
+                  </Button>
+                </CardContent>
+              </Card>
+
+              {/* Status Card */}
+              <Card className="bg-gray-800 border-gray-700">
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2">
+                    <BarChart3 className="h-5 w-5 text-blue-400" />
+                    <span>Статус бота</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span>Биржа:</span>
+                      <Badge variant="outline">
+                        {EXCHANGES.find(e => e.value === selectedExchange)?.icon} {selectedExchange.toUpperCase()}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>Позиций:</span>
+                      <span className="font-mono">{positions.length}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>Следующий фандинг:</span>
+                      <span className="font-mono text-sm">
+                        {new Date(Math.ceil(Date.now() / 3600000) * 3600000).toLocaleTimeString('ru-RU', { 
+                          hour: '2-digit', 
+                          minute: '2-digit' 
+                        })}
+                      </span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+{/* Funding Info */}            <FundingInfo />
+          </TabsContent>
 n          {/* Subscription Tab */}
           <TabsContent value="subscription">
             <SubscriptionManager />
