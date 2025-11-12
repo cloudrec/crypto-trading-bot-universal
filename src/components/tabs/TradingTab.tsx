@@ -148,12 +148,21 @@ const TradingTab = () => {
     try {
       const currentSettings = tradingSettings[selectedExchange];
       
-      console.log('Сохраняем настройки:', {
-        exchange: selectedExchange,
-        settings: currentSettings,
-        stopLoss: currentSettings.stopLoss,
-        takeProfit: currentSettings.takeProfit
-      });
+      console.log('=== НАЧАЛО СОХРАНЕНИЯ ===');
+      console.log('Сохраняем настройки для биржи:', selectedExchange);
+      console.log('Текущие настройки:', currentSettings);
+      console.log('Stop Loss:', currentSettings?.stopLoss);
+      console.log('Take Profit:', currentSettings?.takeProfit);
+      
+      if (!currentSettings?.stopLoss || !currentSettings?.takeProfit) {
+        console.error('ОШИБКА: Stop Loss или Take Profit пустые!');
+        toast({
+          title: "Ошибка",
+          description: "Пожалуйста, заполните Stop Loss и Take Profit",
+          variant: "destructive",
+        });
+        return;
+      }
       
       // Используем новую функцию upsert с полем side
       const { error } = await supabase.rpc('upsert_trading_settings_with_side_2025_11_12_09_35', {
@@ -174,7 +183,12 @@ const TradingTab = () => {
         throw error;
       }
 
+      console.log('=== УСПЕХ СОХРАНЕНИЯ ===');
       console.log('Настройки успешно сохранены в БД');
+      console.log('Сохраненные значения:');
+      console.log('- Stop Loss:', currentSettings.stopLoss);
+      console.log('- Take Profit:', currentSettings.takeProfit);
+      console.log('- Биржа:', selectedExchange);
 
       toast({
         title: "Успех",
@@ -480,8 +494,9 @@ const TradingTab = () => {
               <Input
                 value={currentSettings?.stopLoss || '2'}
                 onChange={(e) => updateSetting('stopLoss', e.target.value)}
+                onFocus={(e) => e.target.select()}
                 className="bg-gray-700 border-gray-600"
-                placeholder="2"
+                placeholder="Введите Stop Loss в %"
               />
             </div>
 
@@ -491,8 +506,9 @@ const TradingTab = () => {
               <Input
                 value={currentSettings?.takeProfit || '5'}
                 onChange={(e) => updateSetting('takeProfit', e.target.value)}
+                onFocus={(e) => e.target.select()}
                 className="bg-gray-700 border-gray-600"
-                placeholder="5"
+                placeholder="Введите Take Profit в %"
               />
             </div>
           </div>
@@ -676,8 +692,9 @@ const TradingTab = () => {
               <Input
                 value={orderForm.stopLoss}
                 onChange={(e) => setOrderForm(prev => ({ ...prev, stopLoss: e.target.value }))}
+                onFocus={(e) => e.target.select()}
                 className="bg-gray-700 border-gray-600"
-                placeholder="2"
+                placeholder="Введите Stop Loss в %"
               />
             </div>
 
@@ -687,8 +704,9 @@ const TradingTab = () => {
               <Input
                 value={orderForm.takeProfit}
                 onChange={(e) => setOrderForm(prev => ({ ...prev, takeProfit: e.target.value }))}
+                onFocus={(e) => e.target.select()}
                 className="bg-gray-700 border-gray-600"
-                placeholder="5"
+                placeholder="Введите Take Profit в %"
               />
             </div>
           </div>
