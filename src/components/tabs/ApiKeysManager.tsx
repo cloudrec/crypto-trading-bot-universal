@@ -219,7 +219,7 @@ const ApiKeysManager: React.FC<ApiKeysManagerProps> = ({ onKeysUpdate }) => {
     try {
       console.log('🔬 Запускаем детальное тестирование Bybit...');
       
-      const { data, error } = await supabase.functions.invoke('bybit_v5_fixed_signature_2025_11_12_11_10', {
+      const { data, error } = await supabase.functions.invoke('bybit_official_exact_copy_2025_11_12_11_15', {
         body: { action: 'check_balance', exchange: 'bybit' }
       });
       
@@ -282,7 +282,7 @@ const ApiKeysManager: React.FC<ApiKeysManagerProps> = ({ onKeysUpdate }) => {
 
       // Используем специальную функцию для Bybit
       const functionName = exchange === 'bybit' 
-        ? 'bybit_v5_fixed_signature_2025_11_12_11_10'
+        ? 'bybit_official_exact_copy_2025_11_12_11_15'
         : 'balance_checker_bybit_v2_fixed_2025_11_12_10_50';
       
       const { data, error } = await supabase.functions.invoke(functionName, {
