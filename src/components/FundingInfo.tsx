@@ -1,114 +1,96 @@
 import React from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
-import { Badge } from './ui/badge';
-import { ExternalLink, Clock, DollarSign } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Info, TrendingUp, Clock, Shield, Zap } from 'lucide-react';
 
-interface FundingInfoProps {
-  className?: string;
-}
-
-const FundingInfo: React.FC<FundingInfoProps> = ({ className }) => {
-  const currentTimeUTC = new Date().toLocaleString('ru-RU', { 
-    timeZone: 'UTC',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit'
-  });
-
-  const fundingLinks = [
-    {
-      name: 'Binance Funding Rate',
-      url: 'https://www.binance.com/en/futures/funding-history/1',
-      description: 'История ставок фандинга Binance'
-    },
-    {
-      name: 'Bybit Funding Rate',
-      url: 'https://www.bybit.com/en/trading/funding-rate/',
-      description: 'Ставки фандинга Bybit'
-    },
-    {
-      name: 'Gate.io Funding Rate',
-      url: 'https://www.gate.io/futures_trade/USDT/BTC_USDT',
-      description: 'Фандинг Gate.io'
-    },
-    {
-      name: 'CoinGlass Funding',
-      url: 'https://www.coinglass.com/FundingRate',
-      description: 'Агрегатор ставок фандинга'
-    }
-  ];
-
+const FundingInfo = () => {
   return (
-    <Card className={className}>
+    <Card className="bg-gray-800 border-gray-700">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <DollarSign className="h-5 w-5" />
-          💰 Информация о фандинге
+        <CardTitle className="text-white flex items-center">
+          <Info className="h-5 w-5 mr-2" />
+          🤖 Что такое Фандинг Арбитраж Бот?
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Текущее время UTC */}
-        <div className="flex items-center gap-2 p-3 bg-blue-50 rounded-lg">
-          <Clock className="h-4 w-4 text-blue-600" />
-          <span className="text-sm font-medium text-blue-800">
-            Текущее время UTC: {currentTimeUTC}
-          </span>
-        </div>
-
-        {/* Информация о фандинге */}
-        <div className="space-y-2">
-          <h4 className="font-semibold text-gray-800">📊 Ставки фандинга обновляются каждые 8 часов:</h4>
-          <div className="grid grid-cols-1 gap-2 text-sm text-gray-600">
-            <div className="flex items-center gap-2">
-              <Badge variant="outline">00:00 UTC</Badge>
-              <span>Первое начисление фандинга</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Badge variant="outline">08:00 UTC</Badge>
-              <span>Второе начисление фандинга</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Badge variant="outline">16:00 UTC</Badge>
-              <span>Третье начисление фандинга</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Кликабельные ссылки */}
-        <div className="space-y-2">
-          <h4 className="font-semibold text-gray-800">🔗 Полезные ссылки:</h4>
-          <div className="grid grid-cols-1 gap-2">
-            {fundingLinks.map((link, index) => (
-              <a
-                key={index}
-                href={link.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-2 p-2 rounded-lg border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-colors group"
-              >
-                <ExternalLink className="h-4 w-4 text-gray-500 group-hover:text-blue-600" />
-                <div className="flex-1">
-                  <div className="font-medium text-gray-800 group-hover:text-blue-800">
-                    {link.name}
-                  </div>
-                  <div className="text-xs text-gray-500">
-                    {link.description}
-                  </div>
-                </div>
-              </a>
-            ))}
-          </div>
-        </div>
-
-        {/* Дополнительная информация */}
-        <div className="p-3 bg-yellow-50 rounded-lg">
-          <p className="text-sm text-yellow-800">
-            <strong>💡 Совет:</strong> Фандинг начисляется через несколько секунд после указанного времени. 
-            Рекомендуется устанавливать задержку 5-10 секунд в настройках.
+        <div className="bg-blue-900/30 p-4 rounded-lg border border-blue-700">
+          <h3 className="text-lg font-semibold text-blue-300 mb-2">
+            💡 Простыми словами
+          </h3>
+          <p className="text-gray-300 text-sm leading-relaxed">
+            <strong>Фандинг бот</strong> — это автоматизированная торговая стратегия, которая зарабатывает на 
+            <strong> ставках финансирования</strong> (funding fee) на фьючерсных платформах. 
+            Бот автоматически открывает позиции для получения платы за финансирование, 
+            практически без риска долгосрочного удержания позиций.
           </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="bg-green-900/30 p-3 rounded-lg border border-green-700">
+            <div className="flex items-center mb-2">
+              <TrendingUp className="h-4 w-4 text-green-400 mr-2" />
+              <h4 className="font-semibold text-green-300">Как работает</h4>
+            </div>
+            <ul className="text-xs text-gray-300 space-y-1">
+              <li>• Анализирует ставки фандинга на биржах</li>
+              <li>• Открывает позиции для получения платежей</li>
+              <li>• Автоматически закрывает позиции</li>
+              <li>• Работает 24/7 без вашего участия</li>
+            </ul>
+          </div>
+
+          <div className="bg-purple-900/30 p-3 rounded-lg border border-purple-700">
+            <div className="flex items-center mb-2">
+              <Clock className="h-4 w-4 text-purple-400 mr-2" />
+              <h4 className="font-semibold text-purple-300">Периодичность</h4>
+            </div>
+            <ul className="text-xs text-gray-300 space-y-1">
+              <li>• Фандинг начисляется каждые 8 часов</li>
+              <li>• На некоторых биржах — каждый час</li>
+              <li>• Бот работает непрерывно</li>
+              <li>• Автоматический выбор лучших ставок</li>
+            </ul>
+          </div>
+        </div>
+
+        <div className="bg-yellow-900/30 p-4 rounded-lg border border-yellow-700">
+          <div className="flex items-center mb-2">
+            <Shield className="h-4 w-4 text-yellow-400 mr-2" />
+            <h4 className="font-semibold text-yellow-300">Преимущества</h4>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+            <div>
+              <Badge variant="outline" className="mb-1">Низкий риск</Badge>
+              <p className="text-gray-300">Минимальное время удержания позиций</p>
+            </div>
+            <div>
+              <Badge variant="outline" className="mb-1">Автоматизация</Badge>
+              <p className="text-gray-300">Работает без вашего участия</p>
+            </div>
+            <div>
+              <Badge variant="outline" className="mb-1">Стабильность</Badge>
+              <p className="text-gray-300">Регулярный пассивный доход</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-gray-700 p-3 rounded-lg">
+          <div className="flex items-center mb-2">
+            <Zap className="h-4 w-4 text-blue-400 mr-2" />
+            <h4 className="font-semibold text-white">В нашей системе</h4>
+          </div>
+          <div className="text-xs text-gray-300 space-y-1">
+            <p>✅ <strong>Включение автоторговли</strong> запускает Фандинг бот</p>
+            <p>✅ <strong>Автоматическое сканирование</strong> бирж и выбор лучших ставок</p>
+            <p>✅ <strong>Настраиваемые параметры</strong> и ограничения риска</p>
+            <p>✅ <strong>Мультибиржевая поддержка</strong>: Bybit, Binance, Gate.io, KuCoin, OKX, MEXC</p>
+          </div>
+        </div>
+
+        <div className="text-center">
+          <Badge variant="default" className="bg-blue-600">
+            💰 Автоматический заработок на фандинге без постоянного участия
+          </Badge>
         </div>
       </CardContent>
     </Card>
