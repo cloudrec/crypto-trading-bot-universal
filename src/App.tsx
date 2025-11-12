@@ -8,12 +8,16 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
-// Компонент для быстрой настройки API ключей
-const QuickApiSetup = () => {
+// Полный торговый интерфейс
+const FullTradingInterface = () => {
   const { user } = useAuth();
+  const [activeTab, setActiveTab] = useState('keys');
   const [diagnosis, setDiagnosis] = useState<any>(null);
   const [keysInDb, setKeysInDb] = useState<any>(null);
+  const [balances, setBalances] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState<Record<string, boolean>>({});
   const [logs, setLogs] = useState<string[]>([]);
   const [apiKeys, setApiKeys] = useState({
@@ -21,10 +25,17 @@ const QuickApiSetup = () => {
     binance: { api_key: '', api_secret: '', status: 'empty' },
     gate: { api_key: '', api_secret: '', passphrase: '', status: 'empty' }
   });
+  const [orderForm, setOrderForm] = useState({
+    exchange: 'bybit',
+    symbol: 'BTCUSDT',
+    side: 'Buy',
+    quantity: '0.001',
+    price: '30000'
+  });
 
   const addLog = (message: string) => {
     const timestamp = new Date().toLocaleTimeString('ru-RU');
-    setLogs(prev => [`[${timestamp}] ${message}`, ...prev.slice(0, 19)]);
+    setLogs(prev => [`[${timestamp}] ${message}`, ...prev.slice(0, 29)]);
   };
 
   const runDiagnosis = async () => {
@@ -36,16 +47,10 @@ const QuickApiSetup = () => {
         body: { action: 'diagnose_keys' }
       });
 
-      if (error) {
-        console.error('❌ Ошибка диагностики:', error);
-        throw error;
-      }
+      if (error) throw error;
 
-      console.log('✅ Диагностика завершена:', data);
       setDiagnosis(data.diagnosis);
-      
-      addLog(`✅ Диагностика: найдено ${data.diagnosis.total_keys} ключей`);
-      addLog(`⚠️ Проблем: ${data.diagnosis.issues.length}`);
+      addLog(`✅ Диагностика: найдено ${data.diagnosis.total_keys} ключей, проблем: ${data.diagnosis.issues.length}`);
       
       // Обновляем статусы ключей
       const newApiKeys = { ...apiKeys };
@@ -58,7 +63,6 @@ const QuickApiSetup = () => {
       setApiKeys(newApiKeys);
       
     } catch (error: any) {
-      console.error('❌ Ошибка диагностики:', error);
       addLog(`❌ Ошибка диагностики: ${error.message}`);
     } finally {
       setLoading(prev => ({ ...prev, diagnose: false }));
@@ -67,33 +71,18 @@ const QuickApiSetup = () => {
 
   const showKeysInDb = async () => {
     setLoading(prev => ({ ...prev, show_keys: true }));
-    addLog('📋 Показываем ключи в базе данных...');
     
     try {
       const { data, error } = await supabase.functions.invoke('simple_keys_manager_2025_11_12_07_30', {
         body: { action: 'show_keys' }
       });
 
-      if (error) {
-        console.error('❌ Ошибка показа ключей:', error);
-        throw error;
-      }
+      if (error) throw error;
 
-      console.log('✅ Ключи получены:', data);
       setKeysInDb(data.result);
-      
       addLog(`✅ В базе данных: ${data.result.total_keys} ключей`);
       
-      if (data.result.keys.length > 0) {
-        data.result.keys.forEach((key: any) => {
-          addLog(`📋 ${key.exchange}: ${key.api_key_preview} (${key.api_key_length} символов) ${key.is_placeholder ? '🟡 ТЕСТОВЫЙ' : '✅ РЕАЛЬНЫЙ'}`);
-        });
-      } else {
-        addLog('📋 Ключи в базе данных не найдены');
-      }
-      
     } catch (error: any) {
-      console.error('❌ Ошибка показа ключей:', error);
       addLog(`❌ Ошибка показа ключей: ${error.message}`);
     } finally {
       setLoading(prev => ({ ...prev, show_keys: false }));
@@ -106,21 +95,13 @@ const QuickApiSetup = () => {
     
     try {
       const { data, error } = await supabase.functions.invoke('simple_keys_manager_2025_11_12_07_30', {
-        body: { 
-          action: 'add_test_key',
-          exchange: exchange
-        }
+        body: { action: 'add_test_key', exchange: exchange }
       });
 
       if (error) throw error;
 
       addLog(`✅ Тестовый ключ для ${exchange} добавлен`);
-      
-      // Обновляем отображение
-      setTimeout(() => {
-        showKeysInDb();
-        runDiagnosis();
-      }, 500);
+      setTimeout(() => { showKeysInDb(); runDiagnosis(); }, 500);
       
     } catch (error: any) {
       addLog(`❌ Ошибка добавления тестового ключа ${exchange}: ${error.message}`);
@@ -146,7 +127,6 @@ const QuickApiSetup = () => {
     addLog(`💾 Сохраняем ключи для ${exchange}...`);
     
     try {
-      // Прямое обновление в базе данных
       const { error } = await supabase
         .from('api_keys_new')
         .upsert({
@@ -159,29 +139,103 @@ const QuickApiSetup = () => {
           onConflict: 'user_id,exchange'
         });
 
-      if (error) {
-        throw new Error(`Ошибка сохранения: ${error.message}`);
-      }
+      if (error) throw new Error(`Ошибка сохранения: ${error.message}`);
 
       addLog(`✅ ${exchange}: API ключи сохранены`);
-      
-      // Обновляем статус
       setApiKeys(prev => ({
         ...prev,
         [exchange]: { ...prev[exchange as keyof typeof prev], status: 'configured' }
       }));
       
-      // Обновляем отображение
-      setTimeout(() => {
-        showKeysInDb();
-        runDiagnosis();
-      }, 500);
+      setTimeout(() => { showKeysInDb(); runDiagnosis(); }, 500);
       
     } catch (error: any) {
-      console.error('❌ Ошибка сохранения:', error);
       addLog(`❌ ${exchange}: ${error.message}`);
     } finally {
       setLoading(prev => ({ ...prev, [`save_${exchange}`]: false }));
+    }
+  };
+
+  const checkBalance = async (exchange: string) => {
+    setLoading(prev => ({ ...prev, [`balance_${exchange}`]: true }));
+    addLog(`💰 Проверяем баланс на ${exchange}...`);
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('hybrid_trading_engine_2025_11_12_06_50', {
+        body: { action: 'check_balance', exchange: exchange }
+      });
+
+      if (error) throw error;
+
+      if (data.success) {
+        setBalances(prev => ({ ...prev, [exchange]: data.balance }));
+        addLog(`✅ Баланс ${exchange}: ${data.balance.total_usdt?.toFixed(2)} USDT`);
+      } else {
+        addLog(`❌ Ошибка баланса ${exchange}: ${data.error}`);
+      }
+      
+    } catch (error: any) {
+      addLog(`❌ Ошибка баланса ${exchange}: ${error.message}`);
+    } finally {
+      setLoading(prev => ({ ...prev, [`balance_${exchange}`]: false }));
+    }
+  };
+
+  const placeTestOrder = async (exchange: string) => {
+    setLoading(prev => ({ ...prev, [`order_${exchange}`]: true }));
+    addLog(`📝 Размещаем тестовый ордер на ${exchange}...`);
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('hybrid_trading_engine_2025_11_12_06_50', {
+        body: { 
+          action: 'place_test_order', 
+          exchange: exchange,
+          symbol: orderForm.symbol,
+          side: orderForm.side,
+          quantity: orderForm.quantity,
+          price: orderForm.price
+        }
+      });
+
+      if (error) throw error;
+
+      if (data.success) {
+        addLog(`✅ Ордер ${exchange}: ${data.order.orderId} (${data.order.side} ${data.order.quantity} ${data.order.symbol})`);
+      } else {
+        addLog(`❌ Ошибка ордера ${exchange}: ${data.error}`);
+      }
+      
+    } catch (error: any) {
+      addLog(`❌ Ошибка ордера ${exchange}: ${error.message}`);
+    } finally {
+      setLoading(prev => ({ ...prev, [`order_${exchange}`]: false }));
+    }
+  };
+
+  const testConnection = async (exchange: string) => {
+    setLoading(prev => ({ ...prev, [`test_${exchange}`]: true }));
+    addLog(`🧪 Тестируем подключение к ${exchange}...`);
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('api_keys_diagnostics_2025_11_12_07_00', {
+        body: { action: 'test_connection', exchange: exchange }
+      });
+
+      if (error) throw error;
+
+      if (data.success) {
+        addLog(`✅ ${exchange}: Подключение успешно`);
+        if (data.test_result.balance_test) {
+          addLog(`💰 ${exchange}: Баланс доступен`);
+        }
+      } else {
+        addLog(`❌ ${exchange}: ${data.test_result.error}`);
+      }
+      
+    } catch (error: any) {
+      addLog(`❌ Тест ${exchange}: ${error.message}`);
+    } finally {
+      setLoading(prev => ({ ...prev, [`test_${exchange}`]: false }));
     }
   };
 
@@ -201,6 +255,7 @@ const QuickApiSetup = () => {
       addLog('✅ Все API ключи удалены');
       setDiagnosis(null);
       setKeysInDb(null);
+      setBalances({});
       setApiKeys({
         bybit: { api_key: '', api_secret: '', status: 'empty' },
         binance: { api_key: '', api_secret: '', status: 'empty' },
@@ -214,113 +269,38 @@ const QuickApiSetup = () => {
     }
   };
 
-  const testConnection = async (exchange: string) => {
-    setLoading(prev => ({ ...prev, [`test_${exchange}`]: true }));
-    addLog(`🧪 Тестируем подключение к ${exchange}...`);
+  const sendTelegramNotification = async () => {
+    addLog('📱 Отправляем Telegram уведомление...');
     
     try {
-      const { data, error } = await supabase.functions.invoke('api_keys_diagnostics_2025_11_12_07_00', {
+      const { data, error } = await supabase.functions.invoke('funding_arbitrage_bot_2025_11_12_05_20', {
         body: { 
-          action: 'test_connection',
-          exchange: exchange
+          action: 'send_telegram_notification',
+          message: `🤖 Торговый бот активен!\n\n✅ API ключи настроены\n💰 Балансы проверены\n📝 Тестовые ордера работают\n⏰ ${new Date().toLocaleString('ru-RU')}`
         }
       });
 
-      if (error) {
-        console.error('❌ Ошибка тестирования:', error);
-        throw error;
-      }
+      if (error) throw error;
 
-      console.log('✅ Тест завершен:', data);
-      
       if (data.success) {
-        addLog(`✅ ${exchange}: Подключение успешно`);
-        if (data.test_result.balance_test) {
-          addLog(`💰 ${exchange}: Баланс доступен`);
-        }
-      } else {
-        addLog(`❌ ${exchange}: ${data.test_result.error}`);
+        addLog('✅ Telegram уведомление отправлено');
       }
       
     } catch (error: any) {
-      console.error('❌ Ошибка тестирования:', error);
-      addLog(`❌ Тест ${exchange}: ${error.message}`);
-    } finally {
-      setLoading(prev => ({ ...prev, [`test_${exchange}`]: false }));
+      addLog(`❌ Ошибка Telegram: ${error.message}`);
     }
   };
 
-  const testTradingFunctions = async () => {
-    addLog('🚀 Тестируем торговые функции...');
-    
-    try {
-      // Тестируем проверку баланса
-      const { data: balanceData, error: balanceError } = await supabase.functions.invoke('hybrid_trading_engine_2025_11_12_06_50', {
-        body: { 
-          action: 'check_balance', 
-          exchange: 'bybit'
-        }
-      });
-
-      if (balanceData?.success) {
-        addLog(`✅ Баланс Bybit: ${balanceData.balance?.total_usdt?.toFixed(2)} USDT`);
-      } else {
-        addLog(`⚠️ Баланс Bybit: ${balanceData?.error || 'Неизвестная ошибка'}`);
-      }
-
-      // Тестируем размещение тестового ордера
-      const { data: orderData, error: orderError } = await supabase.functions.invoke('hybrid_trading_engine_2025_11_12_06_50', {
-        body: { 
-          action: 'place_test_order', 
-          exchange: 'bybit',
-          symbol: 'BTCUSDT',
-          side: 'Buy',
-          quantity: '0.001',
-          price: '30000'
-        }
-      });
-
-      if (orderData?.success) {
-        addLog(`✅ Тестовый ордер Bybit: ${orderData.order?.orderId}`);
-      } else {
-        addLog(`⚠️ Тестовый ордер Bybit: ${orderData?.error || 'Неизвестная ошибка'}`);
-      }
-
-      addLog('🎯 Торговые функции протестированы!');
-      
-    } catch (error: any) {
-      addLog(`❌ Ошибка торговых функций: ${error.message}`);
-    }
-  };
-
-  // Автоматическая диагностика при загрузке
+  // Автоматическая загрузка при старте
   useEffect(() => {
     runDiagnosis();
     showKeysInDb();
   }, []);
 
   const exchanges = [
-    { 
-      id: 'bybit', 
-      name: 'Bybit', 
-      icon: '🟡', 
-      color: 'bg-yellow-600',
-      requirements: 'API Key: 18+ символов, Secret: 64 символа'
-    },
-    { 
-      id: 'binance', 
-      name: 'Binance', 
-      icon: '🟨', 
-      color: 'bg-orange-600',
-      requirements: 'API Key: 64 символа, Secret: 64 символа'
-    },
-    { 
-      id: 'gate', 
-      name: 'Gate.io', 
-      icon: '🟦', 
-      color: 'bg-blue-600',
-      requirements: 'API Key + Secret + Passphrase (обязательно!)'
-    }
+    { id: 'bybit', name: 'Bybit', icon: '🟡', color: 'bg-yellow-600' },
+    { id: 'binance', name: 'Binance', icon: '🟨', color: 'bg-orange-600' },
+    { id: 'gate', name: 'Gate.io', icon: '🟦', color: 'bg-blue-600' }
   ];
 
   const getStatusBadge = (status: string) => {
@@ -342,233 +322,384 @@ const QuickApiSetup = () => {
         <Card className="bg-gray-800 border-gray-700">
           <CardHeader>
             <CardTitle className="text-white text-center">
-              🔑 Управление API Ключами
+              🚀 Универсальный Торговый Бот
             </CardTitle>
           </CardHeader>
           <CardContent className="text-center">
             <p className="text-gray-300 mb-4">
-              Добавьте реальные API ключи или протестируйте с тестовыми
+              Полнофункциональная торговая система с API ключами, балансами и тестовыми ордерами
             </p>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-              <Button 
-                onClick={runDiagnosis} 
-                disabled={loading.diagnose}
-                className="bg-blue-600 hover:bg-blue-700"
-              >
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+              <Button onClick={runDiagnosis} disabled={loading.diagnose} className="bg-blue-600 hover:bg-blue-700">
                 {loading.diagnose ? '🔄' : '🔍'} Диагностика
               </Button>
-              <Button 
-                onClick={showKeysInDb}
-                disabled={loading.show_keys}
-                className="bg-purple-600 hover:bg-purple-700"
-              >
+              <Button onClick={showKeysInDb} disabled={loading.show_keys} className="bg-purple-600 hover:bg-purple-700">
                 {loading.show_keys ? '🔄' : '📋'} Ключи в БД
               </Button>
-              <Button 
-                onClick={testTradingFunctions}
-                className="bg-green-600 hover:bg-green-700"
-              >
-                🚀 Тест торговли
+              <Button onClick={sendTelegramNotification} className="bg-blue-500 hover:bg-blue-600">
+                📱 Telegram
               </Button>
-              <Button 
-                onClick={clearAllKeys} 
-                disabled={loading.clear}
-                variant="destructive"
-              >
+              <Button onClick={clearAllKeys} disabled={loading.clear} variant="destructive">
                 {loading.clear ? '🔄' : '🗑️'} Очистить
               </Button>
+              <Button onClick={() => window.location.reload()} className="bg-green-600 hover:bg-green-700">
+                🔄 Перезагрузить
+              </Button>
             </div>
           </CardContent>
         </Card>
 
-        {/* Статистика */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Диагностика */}
-          {diagnosis && (
-            <Card className="bg-gray-800 border-gray-700">
-              <CardHeader>
-                <CardTitle className="text-white">📊 Диагностика</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="bg-gray-700 p-3 rounded text-center">
-                    <div className="text-xl font-bold text-blue-400">{diagnosis.total_keys}</div>
-                    <div className="text-xs text-gray-300">Всего</div>
-                  </div>
-                  <div className="bg-gray-700 p-3 rounded text-center">
-                    <div className="text-xl font-bold text-red-400">{diagnosis.issues.length}</div>
-                    <div className="text-xs text-gray-300">Проблем</div>
-                  </div>
-                  <div className="bg-gray-700 p-3 rounded text-center">
-                    <div className="text-xl font-bold text-green-400">
-                      {Object.keys(diagnosis.keys_by_exchange).filter(k => !diagnosis.keys_by_exchange[k].is_placeholder).length}
-                    </div>
-                    <div className="text-xs text-gray-300">Реальных</div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
+        {/* Вкладки */}
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="grid w-full grid-cols-4 bg-gray-800">
+            <TabsTrigger value="keys" className="data-[state=active]:bg-gray-700">🔑 API Ключи</TabsTrigger>
+            <TabsTrigger value="balances" className="data-[state=active]:bg-gray-700">💰 Балансы</TabsTrigger>
+            <TabsTrigger value="trading" className="data-[state=active]:bg-gray-700">📝 Торговля</TabsTrigger>
+            <TabsTrigger value="logs" className="data-[state=active]:bg-gray-700">📝 Логи</TabsTrigger>
+          </TabsList>
 
-          {/* Ключи в БД */}
-          {keysInDb && (
-            <Card className="bg-gray-800 border-gray-700">
-              <CardHeader>
-                <CardTitle className="text-white">📋 Ключи в БД</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {keysInDb.keys.length > 0 ? (
-                  <div className="space-y-2">
-                    {keysInDb.keys.map((key: any, index: number) => (
-                      <div key={index} className="bg-gray-700 p-2 rounded text-sm">
-                        <div className="flex justify-between items-center">
-                          <span className="font-semibold">{key.exchange}</span>
-                          <Badge variant={key.is_placeholder ? "secondary" : "default"}>
-                            {key.is_placeholder ? "🟡 Тест" : "✅ Реал"}
-                          </Badge>
-                        </div>
-                        <div className="text-xs text-gray-300">
-                          Key: {key.api_key_preview} ({key.api_key_length})
-                        </div>
-                        <div className="text-xs text-gray-300">
-                          Secret: {key.api_secret_preview} ({key.api_secret_length})
-                        </div>
+          {/* Вкладка API Ключи */}
+          <TabsContent value="keys" className="space-y-6">
+            {/* Статистика */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {diagnosis && (
+                <Card className="bg-gray-800 border-gray-700">
+                  <CardHeader>
+                    <CardTitle className="text-white">📊 Диагностика</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-3 gap-4">
+                      <div className="bg-gray-700 p-3 rounded text-center">
+                        <div className="text-xl font-bold text-blue-400">{diagnosis.total_keys}</div>
+                        <div className="text-xs text-gray-300">Всего</div>
                       </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-gray-400 text-center">Ключи не найдены</p>
-                )}
-              </CardContent>
-            </Card>
-          )}
-        </div>
-
-        {/* Настройка ключей для каждой биржи */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {exchanges.map(exchange => (
-            <Card key={exchange.id} className="bg-gray-800 border-gray-700">
-              <CardHeader>
-                <CardTitle className="text-white flex items-center justify-between">
-                  <span>{exchange.icon} {exchange.name}</span>
-                  {getStatusBadge(apiKeys[exchange.id as keyof typeof apiKeys].status)}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                
-                {/* Требования */}
-                <div className="bg-gray-700 p-3 rounded">
-                  <h4 className="text-sm font-semibold mb-2">📋 Требования:</h4>
-                  <p className="text-xs text-gray-300">{exchange.requirements}</p>
-                </div>
-
-                {/* Поля ввода */}
-                <div className="space-y-3">
-                  <div>
-                    <Label className="text-gray-300 text-sm">API Key</Label>
-                    <Input
-                      value={apiKeys[exchange.id as keyof typeof apiKeys].api_key}
-                      onChange={(e) => setApiKeys(prev => ({
-                        ...prev,
-                        [exchange.id]: { ...prev[exchange.id as keyof typeof prev], api_key: e.target.value }
-                      }))}
-                      className="bg-gray-700 border-gray-600 text-sm"
-                      placeholder="Вставьте API ключ"
-                    />
-                  </div>
-                  
-                  <div>
-                    <Label className="text-gray-300 text-sm">API Secret</Label>
-                    <Textarea
-                      value={apiKeys[exchange.id as keyof typeof apiKeys].api_secret}
-                      onChange={(e) => setApiKeys(prev => ({
-                        ...prev,
-                        [exchange.id]: { ...prev[exchange.id as keyof typeof prev], api_secret: e.target.value }
-                      }))}
-                      className="bg-gray-700 border-gray-600 text-sm"
-                      placeholder="Вставьте API секрет"
-                      rows={2}
-                    />
-                  </div>
-                  
-                  {exchange.id === 'gate' && (
-                    <div>
-                      <Label className="text-gray-300 text-sm">Passphrase</Label>
-                      <Input
-                        value={apiKeys.gate.passphrase}
-                        onChange={(e) => setApiKeys(prev => ({
-                          ...prev,
-                          gate: { ...prev.gate, passphrase: e.target.value }
-                        }))}
-                        className="bg-gray-700 border-gray-600 text-sm"
-                        placeholder="Passphrase для Gate.io"
-                      />
+                      <div className="bg-gray-700 p-3 rounded text-center">
+                        <div className="text-xl font-bold text-red-400">{diagnosis.issues.length}</div>
+                        <div className="text-xs text-gray-300">Проблем</div>
+                      </div>
+                      <div className="bg-gray-700 p-3 rounded text-center">
+                        <div className="text-xl font-bold text-green-400">
+                          {Object.keys(diagnosis.keys_by_exchange).filter(k => !diagnosis.keys_by_exchange[k].is_placeholder).length}
+                        </div>
+                        <div className="text-xs text-gray-300">Реальных</div>
+                      </div>
                     </div>
-                  )}
-                </div>
+                  </CardContent>
+                </Card>
+              )}
 
-                {/* Кнопки */}
-                <div className="space-y-2">
-                  <Button
-                    onClick={() => saveApiKey(exchange.id)}
-                    disabled={loading[`save_${exchange.id}`]}
-                    className={`w-full ${exchange.color} hover:opacity-80`}
-                  >
-                    {loading[`save_${exchange.id}`] ? '🔄 Сохранение...' : '💾 Сохранить'}
-                  </Button>
-                  
-                  <div className="grid grid-cols-2 gap-2">
-                    <Button
-                      onClick={() => addTestKey(exchange.id)}
-                      disabled={loading[`test_${exchange.id}`]}
-                      variant="outline"
-                      className="border-gray-600 text-xs"
-                    >
-                      {loading[`test_${exchange.id}`] ? '🔄' : '➕ Тест'}
-                    </Button>
-                    
-                    <Button
-                      onClick={() => testConnection(exchange.id)}
-                      disabled={loading[`test_${exchange.id}`]}
-                      className="bg-green-600 hover:bg-green-700 text-xs"
-                    >
-                      🧪 Проверить
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-
-        {/* Логи */}
-        <Card className="bg-gray-800 border-gray-700">
-          <CardHeader>
-            <CardTitle className="text-white">📝 Логи Операций</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="bg-gray-900 p-4 rounded max-h-96 overflow-y-auto">
-              {logs.length > 0 ? (
-                <div className="space-y-1">
-                  {logs.map((log, index) => (
-                    <div key={index} className="text-sm font-mono text-gray-300">
-                      {log}
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-gray-500 text-center">Логи операций появятся здесь...</p>
+              {keysInDb && (
+                <Card className="bg-gray-800 border-gray-700">
+                  <CardHeader>
+                    <CardTitle className="text-white">📋 Ключи в БД</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {keysInDb.keys.length > 0 ? (
+                      <div className="space-y-2">
+                        {keysInDb.keys.map((key: any, index: number) => (
+                          <div key={index} className="bg-gray-700 p-2 rounded text-sm">
+                            <div className="flex justify-between items-center">
+                              <span className="font-semibold">{key.exchange}</span>
+                              <Badge variant={key.is_placeholder ? "secondary" : "default"}>
+                                {key.is_placeholder ? "🟡 Тест" : "✅ Реал"}
+                              </Badge>
+                            </div>
+                            <div className="text-xs text-gray-300">
+                              Key: {key.api_key_preview} ({key.api_key_length})
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-gray-400 text-center">Ключи не найдены</p>
+                    )}
+                  </CardContent>
+                </Card>
               )}
             </div>
-            <Button 
-              onClick={() => setLogs([])} 
-              variant="outline" 
-              className="mt-4 border-gray-600"
-            >
-              🗑️ Очистить логи
-            </Button>
-          </CardContent>
-        </Card>
+
+            {/* Настройка ключей */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {exchanges.map(exchange => (
+                <Card key={exchange.id} className="bg-gray-800 border-gray-700">
+                  <CardHeader>
+                    <CardTitle className="text-white flex items-center justify-between">
+                      <span>{exchange.icon} {exchange.name}</span>
+                      {getStatusBadge(apiKeys[exchange.id as keyof typeof apiKeys].status)}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-3">
+                      <div>
+                        <Label className="text-gray-300 text-sm">API Key</Label>
+                        <Input
+                          value={apiKeys[exchange.id as keyof typeof apiKeys].api_key}
+                          onChange={(e) => setApiKeys(prev => ({
+                            ...prev,
+                            [exchange.id]: { ...prev[exchange.id as keyof typeof prev], api_key: e.target.value }
+                          }))}
+                          className="bg-gray-700 border-gray-600 text-sm"
+                          placeholder="API ключ"
+                        />
+                      </div>
+                      
+                      <div>
+                        <Label className="text-gray-300 text-sm">API Secret</Label>
+                        <Textarea
+                          value={apiKeys[exchange.id as keyof typeof apiKeys].api_secret}
+                          onChange={(e) => setApiKeys(prev => ({
+                            ...prev,
+                            [exchange.id]: { ...prev[exchange.id as keyof typeof prev], api_secret: e.target.value }
+                          }))}
+                          className="bg-gray-700 border-gray-600 text-sm"
+                          placeholder="API секрет"
+                          rows={2}
+                        />
+                      </div>
+                      
+                      {exchange.id === 'gate' && (
+                        <div>
+                          <Label className="text-gray-300 text-sm">Passphrase</Label>
+                          <Input
+                            value={apiKeys.gate.passphrase}
+                            onChange={(e) => setApiKeys(prev => ({
+                              ...prev,
+                              gate: { ...prev.gate, passphrase: e.target.value }
+                            }))}
+                            className="bg-gray-700 border-gray-600 text-sm"
+                            placeholder="Passphrase"
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="space-y-2">
+                      <Button
+                        onClick={() => saveApiKey(exchange.id)}
+                        disabled={loading[`save_${exchange.id}`]}
+                        className={`w-full ${exchange.color} hover:opacity-80`}
+                      >
+                        {loading[`save_${exchange.id}`] ? '🔄 Сохранение...' : '💾 Сохранить'}
+                      </Button>
+                      
+                      <div className="grid grid-cols-2 gap-2">
+                        <Button
+                          onClick={() => addTestKey(exchange.id)}
+                          disabled={loading[`test_${exchange.id}`]}
+                          variant="outline"
+                          className="border-gray-600 text-xs"
+                        >
+                          {loading[`test_${exchange.id}`] ? '🔄' : '➕ Тест'}
+                        </Button>
+                        
+                        <Button
+                          onClick={() => testConnection(exchange.id)}
+                          disabled={loading[`test_${exchange.id}`]}
+                          className="bg-green-600 hover:bg-green-700 text-xs"
+                        >
+                          🧪 Проверить
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </TabsContent>
+
+          {/* Вкладка Балансы */}
+          <TabsContent value="balances" className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {exchanges.map(exchange => (
+                <Card key={exchange.id} className="bg-gray-800 border-gray-700">
+                  <CardHeader>
+                    <CardTitle className="text-white flex items-center justify-between">
+                      <span>{exchange.icon} {exchange.name}</span>
+                      <Badge variant={balances[exchange.id] ? "default" : "secondary"}>
+                        {balances[exchange.id] ? "💰 Загружен" : "⏳ Нет данных"}
+                      </Badge>
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    
+                    {balances[exchange.id] && (
+                      <div className="bg-gray-700 p-3 rounded">
+                        <h4 className="text-sm font-semibold mb-2">💰 Баланс:</h4>
+                        <div className="space-y-1 text-sm">
+                          <div className="flex justify-between">
+                            <span>USDT:</span>
+                            <span className="font-mono">{balances[exchange.id].USDT?.total?.toFixed(2) || '0.00'}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>Доступно:</span>
+                            <span className="font-mono text-green-400">{balances[exchange.id].USDT?.available?.toFixed(2) || '0.00'}</span>
+                          </div>
+                          {balances[exchange.id].BTC && (
+                            <div className="flex justify-between">
+                              <span>BTC:</span>
+                              <span className="font-mono">{balances[exchange.id].BTC?.total?.toFixed(8) || '0.00000000'}</span>
+                            </div>
+                          )}
+                          <div className="flex justify-between font-semibold">
+                            <span>Всего USD:</span>
+                            <span className="font-mono">{balances[exchange.id].total_usdt?.toFixed(2) || '0.00'}</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    <Button
+                      onClick={() => checkBalance(exchange.id)}
+                      disabled={loading[`balance_${exchange.id}`]}
+                      className={`w-full ${exchange.color} hover:opacity-80`}
+                    >
+                      {loading[`balance_${exchange.id}`] ? (
+                        <div className="flex items-center">
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                          Проверяем...
+                        </div>
+                      ) : (
+                        `💰 Проверить баланс`
+                      )}
+                    </Button>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </TabsContent>
+
+          {/* Вкладка Торговля */}
+          <TabsContent value="trading" className="space-y-6">
+            {/* Форма ордера */}
+            <Card className="bg-gray-800 border-gray-700">
+              <CardHeader>
+                <CardTitle className="text-white">📝 Параметры Тестового Ордера</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                  <div>
+                    <Label className="text-gray-300">Биржа</Label>
+                    <Select value={orderForm.exchange} onValueChange={(value) => setOrderForm(prev => ({ ...prev, exchange: value }))}>
+                      <SelectTrigger className="bg-gray-700 border-gray-600">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-gray-700">
+                        {exchanges.map(exchange => (
+                          <SelectItem key={exchange.id} value={exchange.id}>
+                            {exchange.icon} {exchange.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  <div>
+                    <Label className="text-gray-300">Символ</Label>
+                    <Input
+                      value={orderForm.symbol}
+                      onChange={(e) => setOrderForm(prev => ({ ...prev, symbol: e.target.value }))}
+                      className="bg-gray-700 border-gray-600"
+                      placeholder="BTCUSDT"
+                    />
+                  </div>
+                  
+                  <div>
+                    <Label className="text-gray-300">Сторона</Label>
+                    <Select value={orderForm.side} onValueChange={(value) => setOrderForm(prev => ({ ...prev, side: value }))}>
+                      <SelectTrigger className="bg-gray-700 border-gray-600">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-gray-700">
+                        <SelectItem value="Buy">🟢 Buy</SelectItem>
+                        <SelectItem value="Sell">🔴 Sell</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  <div>
+                    <Label className="text-gray-300">Количество</Label>
+                    <Input
+                      value={orderForm.quantity}
+                      onChange={(e) => setOrderForm(prev => ({ ...prev, quantity: e.target.value }))}
+                      className="bg-gray-700 border-gray-600"
+                      placeholder="0.001"
+                    />
+                  </div>
+                  
+                  <div>
+                    <Label className="text-gray-300">Цена</Label>
+                    <Input
+                      value={orderForm.price}
+                      onChange={(e) => setOrderForm(prev => ({ ...prev, price: e.target.value }))}
+                      className="bg-gray-700 border-gray-600"
+                      placeholder="30000"
+                    />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Торговые кнопки */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {exchanges.map(exchange => (
+                <Card key={exchange.id} className="bg-gray-800 border-gray-700">
+                  <CardHeader>
+                    <CardTitle className="text-white">
+                      {exchange.icon} {exchange.name} Торговля
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-2">
+                    <Button
+                      onClick={() => placeTestOrder(exchange.id)}
+                      disabled={loading[`order_${exchange.id}`]}
+                      className="w-full bg-green-600 hover:bg-green-700"
+                    >
+                      {loading[`order_${exchange.id}`] ? (
+                        <div className="flex items-center">
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                          Размещаем...
+                        </div>
+                      ) : (
+                        `📝 Тестовый ордер`
+                      )}
+                    </Button>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </TabsContent>
+
+          {/* Вкладка Логи */}
+          <TabsContent value="logs" className="space-y-6">
+            <Card className="bg-gray-800 border-gray-700">
+              <CardHeader>
+                <CardTitle className="text-white">📝 Логи Всех Операций</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="bg-gray-900 p-4 rounded max-h-96 overflow-y-auto">
+                  {logs.length > 0 ? (
+                    <div className="space-y-1">
+                      {logs.map((log, index) => (
+                        <div key={index} className="text-sm font-mono text-gray-300">
+                          {log}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-gray-500 text-center">Логи операций появятся здесь...</p>
+                  )}
+                </div>
+                <Button 
+                  onClick={() => setLogs([])} 
+                  variant="outline" 
+                  className="mt-4 border-gray-600"
+                >
+                  🗑️ Очистить логи
+                </Button>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );
@@ -593,7 +724,7 @@ const AuthenticatedApp = () => {
     return <AuthForm />;
   }
 
-  return <QuickApiSetup />;
+  return <FullTradingInterface />;
 };
 
 function App() {
