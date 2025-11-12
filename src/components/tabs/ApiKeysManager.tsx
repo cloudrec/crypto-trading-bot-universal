@@ -215,7 +215,7 @@ const ApiKeysManager: React.FC<ApiKeysManagerProps> = ({ onKeysUpdate }) => {
     setLoading(prev => ({ ...prev, [`balance_${exchange}`]: true }));
     
     try {
-      const { data, error } = await supabase.functions.invoke('fixed_trading_engine_with_demo_2025_11_12_08_30', {
+      const { data, error } = await supabase.functions.invoke('improved_trading_engine_with_smart_demo_2025_11_12_09_00', {
         body: { action: 'check_balance', exchange: exchange }
       });
 

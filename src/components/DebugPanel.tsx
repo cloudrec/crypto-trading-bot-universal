@@ -22,7 +22,7 @@ const DebugPanel = () => {
     try {
       console.log(`Вызываем функцию для ${exchange}...`);
       
-      const { data, error } = await supabase.functions.invoke('fixed_trading_engine_with_demo_2025_11_12_08_30', {
+      const { data, error } = await supabase.functions.invoke('improved_trading_engine_with_smart_demo_2025_11_12_09_00', {
         body: { action: 'check_balance', exchange: exchange }
       });
 
@@ -86,7 +86,7 @@ const DebugPanel = () => {
     addLog(`🔧 Тестируем прямой вызов функции...`);
     
     try {
-      const response = await fetch('/api/v1/functions/fixed_trading_engine_with_demo_2025_11_12_08_30', {
+      const response = await fetch('/api/v1/functions/improved_trading_engine_with_smart_demo_2025_11_12_09_00', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -200,7 +200,7 @@ const DebugPanel = () => {
         <div className="mt-4 text-xs text-gray-400 space-y-1">
           <div>👤 Пользователь: {user?.email}</div>
           <div>🆔 ID: {user?.id?.substring(0, 8)}...</div>
-          <div>⚡ Функция: fixed_trading_engine_with_demo_2025_11_12_08_30</div>
+          <div>⚡ Функция: improved_trading_engine_with_smart_demo_2025_11_12_09_00</div>
           <div>📊 Логов: {logs.length}/20</div>
         </div>
       </CardContent>
