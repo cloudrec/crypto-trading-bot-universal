@@ -60,11 +60,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const { data } = await supabase
         .from('user_profiles')
-        .select('subscription_plan')
+        .select('is_admin')
         .eq('user_id', user.id)
         .single();
       
-      setIsAdmin(data?.subscription_plan === 'admin');
+      setIsAdmin(data?.is_admin === true);
     } catch (error) {
       setIsAdmin(false);
     }
