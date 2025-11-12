@@ -1,164 +1,58 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from '@/hooks/use-toast';
-import TradingConfigManager from '@/components/TradingConfigManager';
-import ApiKeysManager from '@/components/ApiKeysManager';
-import SubscriptionManager from '@/components/SubscriptionManager';
-import AdminPanel from '@/components/AdminPanel';
-import ArbitrageScanner from "@/components/ArbitrageScanner";
-import TriangularArbitrage from "@/components/TriangularArbitrage";
-import FundingBot from "@/components/FundingBot";
-import TradingForm from "@/components/TradingForm";
-import { 
-  TrendingUp, 
-  TrendingDown, 
-  DollarSign, 
-  Play, 
-  Square, 
-  RefreshCw,
-  CheckCircle,
-  XCircle,
-  BarChart3,
-  Clock,
-  Zap,
-  Activity,
-  AlertCircle
-} from 'lucide-react';
 
-interface Position {
-  id: string;
-  exchange: string;
-  symbol: string;
-  side: 'long' | 'short';
-  size: number;
-  entry_price: number;
-  current_price?: number;
-  pnl_usd: number;
-  status: string;
-  opened_at: string;
-  funding_received: number;
-}
+// Импорты компонентов вкладок
+import TradingForm from '@/components/tabs/TradingForm';
+import PositionsTab from '@/components/tabs/PositionsTab';
+import ConfigTab from '@/components/tabs/ConfigTab';
+import LogsTab from '@/components/tabs/LogsTab';
+import FundingBot from '@/components/tabs/FundingBot';
+import AdminPanel from '@/components/tabs/AdminPanel';
 
-interface BotLog {
-  id: string;
-  exchange: string;
-  action: string;
-  message: string;
-  level: 'info' | 'warning' | 'error' | 'success';
-  created_at: string;
-}
+// Заглушки для остальных компонентов
+const ApiKeysManager = () => <div className="text-white p-4">API Ключи - в разработке</div>;
+const SubscriptionManager = () => <div className="text-white p-4">Подписка - в разработке</div>;
+const ArbitrageScanner = () => <div className="text-white p-4">Арбитраж - в разработке</div>;
+const TriangularArbitrage = () => <div className="text-white p-4">Треугольный арбитраж - в разработке</div>;
 
-const EXCHANGES = [
-  { value: 'bybit', label: 'Bybit', icon: '🟡' },
-  { value: 'binance', label: 'Binance', icon: '🟨' },
-  { value: 'gate', label: 'Gate.io', icon: '🟦' },
-  { value: 'kucoin', label: 'KuCoin', icon: '🟩' },
-  { value: 'okx', label: 'OKX', icon: '⚫' },
-  { value: 'mexc', label: 'MEXC', icon: '🔵' }
-];
-
-export default function TradingDashboard() {
-  const { user, isAdmin, signOut } = useAuth();
+const TradingDashboard = () => {
+  const { user, isAdmin } = useAuth();
   const [selectedExchange, setSelectedExchange] = useState('bybit');
-  const [positions, setPositions] = useState<Position[]>([]);
-  const [botLogs, setBotLogs] = useState<BotLog[]>([]);
   const [balances, setBalances] = useState<Record<string, any>>({});
+  const [positions, setPositions] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
-  const [stats, setStats] = useState({
-    totalProfit: 0,
-    todayTrades: 0,
-    activePositions: 0,
-    successRate: 0
-  });
 
+  // Загрузка данных при монтировании
   useEffect(() => {
-    loadPositions();
-    loadBotLogs();
-    loadStats();
-  }, [user]);
+    loadInitialData();
+  }, []);
 
-  const loadStats = async () => {
-    if (!user) return;
-
+  const loadInitialData = async () => {
     try {
-      // Загружаем статистику из истории торгов
-      const { data: history } = await supabase
-        .from('trading_history')
-        .select('pnl_usd, created_at')
-        .eq('user_id', user.id);
-
-      const today = new Date().toDateString();
-      const todayTrades = history?.filter(h => 
-        new Date(h.created_at).toDateString() === today
-      ).length || 0;
-
-      const totalProfit = history?.reduce((sum, h) => sum + (h.pnl_usd || 0), 0) || 0;
-      const successfulTrades = history?.filter(h => (h.pnl_usd || 0) > 0).length || 0;
-      const successRate = history?.length ? (successfulTrades / history.length) * 100 : 0;
-
-      setStats({
-        totalProfit,
-        todayTrades,
-        activePositions: positions.length,
-        successRate
+      // Загружаем позиции
+      const { data: positionsData } = await supabase.functions.invoke('funding_arbitrage_bot_2025_11_12_05_20', {
+        body: { action: 'get_funding_positions' }
       });
+      
+      if (positionsData?.success) {
+        setPositions(positionsData.positions || []);
+      }
     } catch (error) {
-      console.error('Ошибка загрузки статистики:', error);
-    }
-  };
-
-  const loadPositions = async () => {
-    if (!user) return;
-
-    try {
-      const { data, error } = await supabase
-        .from('active_positions')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('status', 'open')
-        .order('opened_at', { ascending: false });
-
-      if (error) throw error;
-      setPositions(data || []);
-    } catch (error: any) {
-      console.error('Ошибка загрузки позиций:', error);
-    }
-  };
-
-  const loadBotLogs = async () => {
-    if (!user) return;
-
-    try {
-      const { data, error } = await supabase
-        .from('bot_logs')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-        .limit(50);
-
-      if (error) throw error;
-      setBotLogs(data || []);
-    } catch (error: any) {
-      console.error('Ошибка загрузки логов:', error);
+      console.error('Ошибка загрузки данных:', error);
     }
   };
 
   const handleTradingAction = async (action: string, testMode = false) => {
-    if (!user) return;
-
     setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke('real_trading_engine_2025_11_12_03_55', {
-        body: {
-          action,
+      const { data, error } = await supabase.functions.invoke('funding_arbitrage_bot_2025_11_12_05_20', {
+        body: { 
+          action, 
           exchange: selectedExchange,
-          testMode
+          test_mode: testMode
         }
       });
 
@@ -166,25 +60,23 @@ export default function TradingDashboard() {
 
       if (data.success) {
         toast({
-          title: "Операция выполнена",
-          description: `${action} на ${selectedExchange} успешно выполнено`,
+          title: "✅ Успешно",
+          description: data.message || `${action} выполнено успешно`,
         });
 
-        // Обновляем данные
-        if (action === 'check_balance') {
-          setBalances(prev => ({ ...prev, [selectedExchange]: data }));
-        } else {
-          loadPositions();
-          loadBotLogs();
+        // Обновляем баланс если это была проверка баланса
+        if (action === 'check_balance' && data.balance) {
+          setBalances(prev => ({ ...prev, [selectedExchange]: data.balance }));
         }
-      } else {
-        throw new Error(data.error || 'Неизвестная ошибка');
+
+        // Обновляем позиции
+        await loadInitialData();
       }
     } catch (error: any) {
       toast({
-        title: "Ошибка операции",
+        title: "Ошибка",
         description: error.message,
-        variant: "destructive"
+        variant: "destructive",
       });
     } finally {
       setLoading(false);
@@ -193,339 +85,87 @@ export default function TradingDashboard() {
 
   const currentBalance = balances[selectedExchange];
 
-  if (!user) {
-    return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
-        <Card className="bg-gray-800 border-gray-700">
-          <CardContent className="p-6 text-center">
-            <h2 className="text-xl font-semibold text-white mb-2">Требуется авторизация</h2>
-            <p className="text-gray-400">Войдите в систему для доступа к торговому боту</p>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen bg-gray-900 text-white">
-      {/* Header */}
-      <div className="border-b border-gray-800 bg-gray-900/50 backdrop-blur">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-                🤖 Фандинг Арбитраж Бот
-              </h1>
-              <Badge variant="outline" className="border-green-500 text-green-400">
-                {user?.email}
-              </Badge>
-            </div>
-            <div className="flex items-center space-x-4">
-              <Select value={selectedExchange} onValueChange={setSelectedExchange}>
-                <SelectTrigger className="w-40 bg-gray-800 border-gray-700">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="bg-gray-800 border-gray-700">
-                  {EXCHANGES.map(exchange => (
-                    <SelectItem key={exchange.value} value={exchange.value}>
-                      {exchange.icon} {exchange.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Button variant="outline" onClick={signOut}>
-                Выход
-              </Button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="container mx-auto px-4 py-6">
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <Card className="bg-gray-800 border-gray-700">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-400">Общая прибыль</p>
-                  <p className={`text-2xl font-bold ${stats.totalProfit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                    ${stats.totalProfit.toFixed(2)}
-                  </p>
-                </div>
-                <DollarSign className="h-8 w-8 text-green-400" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-gray-800 border-gray-700">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-400">Сделок сегодня</p>
-                  <p className="text-2xl font-bold">{stats.todayTrades}</p>
-                </div>
-                <Activity className="h-8 w-8 text-blue-400" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-gray-800 border-gray-700">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-400">Активных позиций</p>
-                  <p className="text-2xl font-bold">{stats.activePositions}</p>
-                </div>
-                <BarChart3 className="h-8 w-8 text-yellow-400" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-gray-800 border-gray-700">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-gray-400">Процент успеха</p>
-                  <p className="text-2xl font-bold text-green-400">{stats.successRate.toFixed(1)}%</p>
-                </div>
-                <CheckCircle className="h-8 w-8 text-green-400" />
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
+    <div className="min-h-screen bg-gray-900 text-white p-6">
+      <div className="max-w-7xl mx-auto">
+        <h1 className="text-3xl font-bold mb-8">🤖 Фандинг Арбитраж Бот</h1>
+        
         <Tabs defaultValue="trading" className="space-y-6">
-          <TabsList className={`grid w-full ${isAdmin ? "grid-cols-7" : "grid-cols-6"} bg-gray-800`}>
-            <TabsTrigger value="trading">Торговля</TabsTrigger>
-            <TabsTrigger value="positions">Позиции</TabsTrigger>
-            <TabsTrigger value="config">Конфигурация</TabsTrigger>
-            <TabsTrigger value="api-keys">API Ключи</TabsTrigger>
-            <TabsTrigger value="logs">Логи</TabsTrigger>
-            <TabsTrigger value="subscription">Подписка</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-6 lg:grid-cols-10 bg-gray-800">
+            <TabsTrigger value="trading">⚡ Торговля</TabsTrigger>
+            <TabsTrigger value="positions">📊 Позиции</TabsTrigger>
+            <TabsTrigger value="config">⚙️ Конфигурация</TabsTrigger>
+            <TabsTrigger value="api-keys">🔑 API Ключи</TabsTrigger>
+            <TabsTrigger value="logs">📝 Логи</TabsTrigger>
+            <TabsTrigger value="subscription">💳 Подписка</TabsTrigger>
             <TabsTrigger value="arbitrage">🔄 Арбитраж</TabsTrigger>
             <TabsTrigger value="triangular">🔺 Треугольный</TabsTrigger>
             <TabsTrigger value="funding">🤖 Фандинг-Бот</TabsTrigger>
-            {isAdmin && <TabsTrigger value="admin">Админ</TabsTrigger>}
+            {isAdmin && <TabsTrigger value="admin">👑 Админ</TabsTrigger>}
           </TabsList>
 
-          {/* Trading Tab */}
-<TradingForm               selectedExchange={selectedExchange}              onExchangeChange={handleExchangeChange}              onTradingAction={handleTradingAction}              currentBalance={currentBalance}              loading={loading}              positions={positions}            />
-n          {/* Subscription Tab */}
-          <TabsContent value="subscription">
-            <SubscriptionManager />
-          </TabsContent>
-
-          {/* Admin Tab */}
-          {/* Arbitrage Tab */}
-          <TabsContent value="arbitrage">
-            <ArbitrageScanner />
-          </TabsContent>
-
-          {/* Triangular Arbitrage Tab */}
-          <TabsContent value="triangular">
-{/* Funding Bot Tab */}          <TabsContent value="funding">            <FundingBot />          </TabsContent>
-            <TriangularArbitrage />
-{/* Funding Bot Tab */}          <TabsContent value="funding">            <FundingBot />          </TabsContent>
-          </TabsContent>
-{/* Funding Bot Tab */}          <TabsContent value="funding">            <FundingBot />          </TabsContent>
-
-          <TabsContent value="admin">
-            <AdminPanel />
-          </TabsContent>
-
-          {/* Positions Tab */}
-          <TabsContent value="positions">
-            <Card className="bg-gray-800 border-gray-700">
-              <CardHeader>
-                <CardTitle>Активные позиции</CardTitle>
-                <CardDescription>Текущие открытые позиции по всем биржам</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {positions.length > 0 ? (
-                  <div className="space-y-4">
-                    {positions.map(position => (
-                      <div key={position.id} className="flex items-center justify-between p-4 bg-gray-700 rounded-lg">
-                        <div className="flex items-center space-x-4">
-                          <Badge variant={position.side === 'long' ? "default" : "destructive"}>
-                            {position.side === 'long' ? <TrendingUp className="h-3 w-3 mr-1" /> : <TrendingDown className="h-3 w-3 mr-1" />}
-                            {position.side.toUpperCase()}
-                          </Badge>
-                          <div>
-                            <p className="font-semibold">{position.symbol} на {position.exchange}</p>
-                            <p className="text-sm text-gray-400">Размер: {position.size}</p>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <p className="font-mono">${position.entry_price}</p>
-                          <p className={`text-sm ${position.pnl_usd >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                            PnL: ${position.pnl_usd.toFixed(2)}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-12">
-                    <AlertCircle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                    <p className="text-gray-400">Нет активных позиций</p>
-                    <p className="text-sm text-gray-500 mt-2">Запустите арбитраж для создания позиций</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-n          {/* Subscription Tab */}
-          <TabsContent value="subscription">
-            <SubscriptionManager />
-          </TabsContent>
-
-          {/* Admin Tab */}
-          {/* Arbitrage Tab */}
-          <TabsContent value="arbitrage">
-            <ArbitrageScanner />
-          </TabsContent>
-
-          {/* Triangular Arbitrage Tab */}
-          <TabsContent value="triangular">
-{/* Funding Bot Tab */}          <TabsContent value="funding">            <FundingBot />          </TabsContent>
-            <TriangularArbitrage />
-{/* Funding Bot Tab */}          <TabsContent value="funding">            <FundingBot />          </TabsContent>
-          </TabsContent>
-{/* Funding Bot Tab */}          <TabsContent value="funding">            <FundingBot />          </TabsContent>
-
-          <TabsContent value="admin">
-            <AdminPanel />
-          </TabsContent>
-
-          {/* Configuration Tab */}
-          <TabsContent value="config">
-            <TradingConfigManager 
+          {/* Торговля */}
+          <TabsContent value="trading">
+            <TradingForm 
               selectedExchange={selectedExchange}
               onExchangeChange={setSelectedExchange}
+              onTradingAction={handleTradingAction}
+              currentBalance={currentBalance}
+              loading={loading}
+              positions={positions}
             />
           </TabsContent>
-n          {/* Subscription Tab */}
-          <TabsContent value="subscription">
-            <SubscriptionManager />
+
+          {/* Позиции */}
+          <TabsContent value="positions">
+            <PositionsTab />
           </TabsContent>
 
-          {/* Admin Tab */}
-          {/* Arbitrage Tab */}
-          <TabsContent value="arbitrage">
-            <ArbitrageScanner />
+          {/* Конфигурация */}
+          <TabsContent value="config">
+            <ConfigTab />
           </TabsContent>
 
-          {/* Triangular Arbitrage Tab */}
-          <TabsContent value="triangular">
-{/* Funding Bot Tab */}          <TabsContent value="funding">            <FundingBot />          </TabsContent>
-            <TriangularArbitrage />
-{/* Funding Bot Tab */}          <TabsContent value="funding">            <FundingBot />          </TabsContent>
-          </TabsContent>
-{/* Funding Bot Tab */}          <TabsContent value="funding">            <FundingBot />          </TabsContent>
-
-          <TabsContent value="admin">
-            <AdminPanel />
-          </TabsContent>
-
-          {/* API Keys Tab */}
+          {/* API Ключи */}
           <TabsContent value="api-keys">
             <ApiKeysManager />
           </TabsContent>
-n          {/* Subscription Tab */}
-          <TabsContent value="subscription">
-            <SubscriptionManager />
-          </TabsContent>
 
-          {/* Admin Tab */}
-          {/* Arbitrage Tab */}
-          <TabsContent value="arbitrage">
-            <ArbitrageScanner />
-          </TabsContent>
-
-          {/* Triangular Arbitrage Tab */}
-          <TabsContent value="triangular">
-{/* Funding Bot Tab */}          <TabsContent value="funding">            <FundingBot />          </TabsContent>
-            <TriangularArbitrage />
-{/* Funding Bot Tab */}          <TabsContent value="funding">            <FundingBot />          </TabsContent>
-          </TabsContent>
-{/* Funding Bot Tab */}          <TabsContent value="funding">            <FundingBot />          </TabsContent>
-
-          <TabsContent value="admin">
-            <AdminPanel />
-          </TabsContent>
-
-          {/* Logs Tab */}
+          {/* Логи */}
           <TabsContent value="logs">
-            <Card className="bg-gray-800 border-gray-700">
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <Clock className="h-5 w-5" />
-                  <span>Логи бота</span>
-                </CardTitle>
-                <CardDescription>История операций и событий</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2 max-h-96 overflow-y-auto">
-                  {botLogs.map(log => (
-                    <div key={log.id} className="flex items-start space-x-3 p-3 bg-gray-700 rounded">
-                      <div className={`w-2 h-2 rounded-full mt-2 ${
-                        log.level === 'success' ? 'bg-green-400' :
-                        log.level === 'error' ? 'bg-red-400' :
-                        log.level === 'warning' ? 'bg-yellow-400' :
-                        'bg-blue-400'
-                      }`} />
-                      <div className="flex-1">
-                        <div className="flex items-center justify-between">
-                          <span className="font-semibold">{log.action}</span>
-                          <span className="text-xs text-gray-400">
-                            {new Date(log.created_at).toLocaleString('ru-RU')}
-                          </span>
-                        </div>
-                        <p className="text-sm text-gray-300">{log.message}</p>
-                        {log.exchange && (
-                          <Badge variant="outline" className="mt-1 text-xs">
-                            {log.exchange}
-                          </Badge>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                  {botLogs.length === 0 && (
-                    <div className="text-center py-12">
-                      <Clock className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                      <p className="text-gray-400">Нет логов</p>
-                      <p className="text-sm text-gray-500 mt-2">Логи операций будут отображаться здесь</p>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+            <LogsTab />
           </TabsContent>
-n          {/* Subscription Tab */}
+
+          {/* Подписка */}
           <TabsContent value="subscription">
             <SubscriptionManager />
           </TabsContent>
 
-          {/* Admin Tab */}
-          {/* Arbitrage Tab */}
+          {/* Арбитраж */}
           <TabsContent value="arbitrage">
             <ArbitrageScanner />
           </TabsContent>
 
-          {/* Triangular Arbitrage Tab */}
+          {/* Треугольный арбитраж */}
           <TabsContent value="triangular">
-{/* Funding Bot Tab */}          <TabsContent value="funding">            <FundingBot />          </TabsContent>
             <TriangularArbitrage />
-{/* Funding Bot Tab */}          <TabsContent value="funding">            <FundingBot />          </TabsContent>
           </TabsContent>
-{/* Funding Bot Tab */}          <TabsContent value="funding">            <FundingBot />          </TabsContent>
 
-          <TabsContent value="admin">
-            <AdminPanel />
+          {/* Фандинг-бот */}
+          <TabsContent value="funding">
+            <FundingBot />
           </TabsContent>
+
+          {/* Админ панель */}
+          {isAdmin && (
+            <TabsContent value="admin">
+              <AdminPanel />
+            </TabsContent>
+          )}
         </Tabs>
       </div>
     </div>
   );
-}
+};
+
+export default TradingDashboard;
