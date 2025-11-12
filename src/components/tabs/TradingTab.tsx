@@ -16,7 +16,7 @@ const TradingTab = () => {
   const [balances, setBalances] = useState<Record<string, any>>({});
   const [selectedExchange, setSelectedExchange] = useState('bybit');
   
-  // Настройки торговли для каждой биржи отдельно
+  // Упрощенные настройки торговли
   const [tradingSettings, setTradingSettings] = useState<Record<string, any>>({
     bybit: {
       baseCurrency: 'BTC',
@@ -114,7 +114,7 @@ const TradingTab = () => {
 
       if (error) throw error;
 
-      console.log('Загруженные настройки из БД:', data);
+      console.log('🔍 Загруженные настройки из БД:', data);
 
       // Обновляем настройки для каждой биржи
       if (data && data.length > 0) {
@@ -134,28 +134,28 @@ const TradingTab = () => {
           }
         });
         setTradingSettings(newSettings);
-        console.log('Обновленные настройки:', newSettings);
+        console.log('✅ Обновленные настройки:', newSettings);
       }
     } catch (error: any) {
-      console.error('Ошибка загрузки настроек:', error);
+      console.error('❌ Ошибка загрузки настроек:', error);
     }
   };
 
-  // Сохранение настроек для выбранной биржи с использованием новой функции
+  // УПРОЩЕННОЕ сохранение настроек - прямой INSERT/UPDATE
   const saveTradingSettings = async () => {
     setLoading(prev => ({ ...prev, save: true }));
     
     try {
       const currentSettings = tradingSettings[selectedExchange];
       
-      console.log('=== НАЧАЛО СОХРАНЕНИЯ ===');
-      console.log('Сохраняем настройки для биржи:', selectedExchange);
-      console.log('Текущие настройки:', currentSettings);
+      console.log('💾 === НАЧАЛО СОХРАНЕНИЯ ===');
+      console.log('Биржа:', selectedExchange);
       console.log('Stop Loss:', currentSettings?.stopLoss);
       console.log('Take Profit:', currentSettings?.takeProfit);
+      console.log('Все настройки:', currentSettings);
       
       if (!currentSettings?.stopLoss || !currentSettings?.takeProfit) {
-        console.error('ОШИБКА: Stop Loss или Take Profit пустые!');
+        console.error('❌ ОШИБКА: Stop Loss или Take Profit пустые!');
         toast({
           title: "Ошибка",
           description: "Пожалуйста, заполните Stop Loss и Take Profit",
@@ -163,45 +163,48 @@ const TradingTab = () => {
         });
         return;
       }
-      
-      // Используем новую функцию upsert с полем side
-      const { error } = await supabase.rpc('upsert_trading_settings_with_side_2025_11_12_09_35', {
-        p_user_id: user?.id,
-        p_exchange: selectedExchange,
-        p_base_currency: currentSettings.baseCurrency,
-        p_quote_currency: currentSettings.quoteCurrency,
-        p_order_amount: currentSettings.orderAmount,
-        p_leverage: currentSettings.leverage,
-        p_side: currentSettings.side,
-        p_stop_loss: currentSettings.stopLoss,
-        p_take_profit: currentSettings.takeProfit,
-        p_is_active: currentSettings.isActive
-      });
+
+      // Используем прямой upsert вместо RPC
+      const { error } = await supabase
+        .from('trading_settings_2025_11_12_05_30')
+        .upsert({
+          user_id: user?.id,
+          exchange: selectedExchange,
+          base_currency: currentSettings.baseCurrency,
+          quote_currency: currentSettings.quoteCurrency,
+          order_amount: currentSettings.orderAmount,
+          leverage: currentSettings.leverage,
+          side: currentSettings.side,
+          stop_loss: currentSettings.stopLoss,
+          take_profit: currentSettings.takeProfit,
+          is_active: currentSettings.isActive,
+          updated_at: new Date().toISOString()
+        }, {
+          onConflict: 'user_id,exchange'
+        });
 
       if (error) {
-        console.error('Ошибка RPC:', error);
+        console.error('❌ Ошибка прямого upsert:', error);
         throw error;
       }
 
-      console.log('=== УСПЕХ СОХРАНЕНИЯ ===');
-      console.log('Настройки успешно сохранены в БД');
-      console.log('Сохраненные значения:');
-      console.log('- Stop Loss:', currentSettings.stopLoss);
-      console.log('- Take Profit:', currentSettings.takeProfit);
-      console.log('- Биржа:', selectedExchange);
+      console.log('✅ === УСПЕХ СОХРАНЕНИЯ ===');
+      console.log('Сохранено Stop Loss:', currentSettings.stopLoss);
+      console.log('Сохранено Take Profit:', currentSettings.takeProfit);
 
       toast({
         title: "Успех",
-        description: `Настройки для ${selectedExchange} сохранены (Stop Loss: ${currentSettings.stopLoss}%, Take Profit: ${currentSettings.takeProfit}%)`,
+        description: `Настройки сохранены: Stop Loss ${currentSettings.stopLoss}%, Take Profit ${currentSettings.takeProfit}%`,
       });
 
       // Перезагружаем настройки для проверки
       setTimeout(() => {
+        console.log('🔄 Перезагружаем настройки для проверки...');
         loadTradingSettings();
       }, 500);
 
     } catch (error: any) {
-      console.error('Ошибка сохранения:', error);
+      console.error('❌ Ошибка сохранения:', error);
       toast({
         title: "Ошибка",
         description: `Ошибка сохранения: ${error.message}`,
@@ -299,20 +302,25 @@ const TradingTab = () => {
       }
     }));
 
-    // Сохраняем в базу данных используя новую функцию
+    // Сохраняем в базу данных используя прямой upsert
     try {
-      const { error } = await supabase.rpc('upsert_trading_settings_with_side_2025_11_12_09_35', {
-        p_user_id: user?.id,
-        p_exchange: selectedExchange,
-        p_base_currency: currentSettings.baseCurrency,
-        p_quote_currency: currentSettings.quoteCurrency,
-        p_order_amount: currentSettings.orderAmount,
-        p_leverage: currentSettings.leverage,
-        p_side: currentSettings.side,
-        p_stop_loss: currentSettings.stopLoss,
-        p_take_profit: currentSettings.takeProfit,
-        p_is_active: newActiveState
-      });
+      const { error } = await supabase
+        .from('trading_settings_2025_11_12_05_30')
+        .upsert({
+          user_id: user?.id,
+          exchange: selectedExchange,
+          base_currency: currentSettings.baseCurrency,
+          quote_currency: currentSettings.quoteCurrency,
+          order_amount: currentSettings.orderAmount,
+          leverage: currentSettings.leverage,
+          side: currentSettings.side,
+          stop_loss: currentSettings.stopLoss,
+          take_profit: currentSettings.takeProfit,
+          is_active: newActiveState,
+          updated_at: new Date().toISOString()
+        }, {
+          onConflict: 'user_id,exchange'
+        });
 
       if (error) throw error;
 
@@ -352,9 +360,10 @@ const TradingTab = () => {
     }
   };
 
-  // Обновление настроек для выбранной биржи
+  // УПРОЩЕННОЕ обновление настроек
   const updateSetting = (key: string, value: string | boolean) => {
-    console.log(`Обновляем настройку ${key} = ${value} для биржи ${selectedExchange}`);
+    console.log(`🔧 Обновляем ${key} = "${value}" для биржи ${selectedExchange}`);
+    
     setTradingSettings(prev => {
       const newSettings = {
         ...prev,
@@ -363,7 +372,8 @@ const TradingTab = () => {
           [key]: value
         }
       };
-      console.log('Новые настройки после обновления:', newSettings[selectedExchange]);
+      console.log('📝 Новое значение:', newSettings[selectedExchange][key]);
+      console.log('📋 Все настройки биржи:', newSettings[selectedExchange]);
       return newSettings;
     });
   };
@@ -488,28 +498,38 @@ const TradingTab = () => {
               </Select>
             </div>
 
-            {/* Stop Loss - ТЕКСТОВОЕ ПОЛЕ БЕЗ СЧЕТЧИКА */}
+            {/* Stop Loss - УПРОЩЕННОЕ ПОЛЕ */}
             <div>
               <Label className="text-gray-300">Stop Loss (%)</Label>
               <Input
-                value={currentSettings?.stopLoss || '2'}
-                onChange={(e) => updateSetting('stopLoss', e.target.value)}
-                onFocus={(e) => e.target.select()}
+                value={currentSettings?.stopLoss || ''}
+                onChange={(e) => {
+                  console.log('🔴 Stop Loss изменен на:', e.target.value);
+                  updateSetting('stopLoss', e.target.value);
+                }}
                 className="bg-gray-700 border-gray-600"
-                placeholder="Введите Stop Loss в %"
+                placeholder="Введите Stop Loss"
               />
+              <div className="text-xs text-gray-400 mt-1">
+                Текущее значение: {currentSettings?.stopLoss || 'не задано'}
+              </div>
             </div>
 
-            {/* Take Profit - ТЕКСТОВОЕ ПОЛЕ БЕЗ СЧЕТЧИКА */}
+            {/* Take Profit - УПРОЩЕННОЕ ПОЛЕ */}
             <div>
               <Label className="text-gray-300">Take Profit (%)</Label>
               <Input
-                value={currentSettings?.takeProfit || '5'}
-                onChange={(e) => updateSetting('takeProfit', e.target.value)}
-                onFocus={(e) => e.target.select()}
+                value={currentSettings?.takeProfit || ''}
+                onChange={(e) => {
+                  console.log('🟢 Take Profit изменен на:', e.target.value);
+                  updateSetting('takeProfit', e.target.value);
+                }}
                 className="bg-gray-700 border-gray-600"
-                placeholder="Введите Take Profit в %"
+                placeholder="Введите Take Profit"
               />
+              <div className="text-xs text-gray-400 mt-1">
+                Текущее значение: {currentSettings?.takeProfit || 'не задано'}
+              </div>
             </div>
           </div>
 
@@ -543,11 +563,11 @@ const TradingTab = () => {
             <div className="mt-2 grid grid-cols-2 gap-4 text-sm">
               <div>
                 <div className="text-gray-300">Stop Loss:</div>
-                <div className="text-red-400 font-mono">{currentSettings?.stopLoss || '2'}%</div>
+                <div className="text-red-400 font-mono">{currentSettings?.stopLoss || 'не задано'}%</div>
               </div>
               <div>
                 <div className="text-gray-300">Take Profit:</div>
-                <div className="text-green-400 font-mono">{currentSettings?.takeProfit || '5'}%</div>
+                <div className="text-green-400 font-mono">{currentSettings?.takeProfit || 'не задано'}%</div>
               </div>
             </div>
           </div>
@@ -686,27 +706,25 @@ const TradingTab = () => {
               />
             </div>
 
-            {/* Stop Loss для тестового ордера - БЕЗ СЧЕТЧИКА */}
+            {/* Stop Loss для тестового ордера */}
             <div>
               <Label className="text-gray-300">Stop Loss (%)</Label>
               <Input
                 value={orderForm.stopLoss}
                 onChange={(e) => setOrderForm(prev => ({ ...prev, stopLoss: e.target.value }))}
-                onFocus={(e) => e.target.select()}
                 className="bg-gray-700 border-gray-600"
-                placeholder="Введите Stop Loss в %"
+                placeholder="Введите Stop Loss"
               />
             </div>
 
-            {/* Take Profit для тестового ордера - БЕЗ СЧЕТЧИКА */}
+            {/* Take Profit для тестового ордера */}
             <div>
               <Label className="text-gray-300">Take Profit (%)</Label>
               <Input
                 value={orderForm.takeProfit}
                 onChange={(e) => setOrderForm(prev => ({ ...prev, takeProfit: e.target.value }))}
-                onFocus={(e) => e.target.select()}
                 className="bg-gray-700 border-gray-600"
-                placeholder="Введите Take Profit в %"
+                placeholder="Введите Take Profit"
               />
             </div>
           </div>
