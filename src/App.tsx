@@ -8,19 +8,20 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 
-// Компонент для тестирования торговых функций
-const TradingTest = () => {
+// Компонент для диагностики и управления API ключами
+const ApiKeysDiagnostics = () => {
   const { user } = useAuth();
-  const [balances, setBalances] = useState<Record<string, any>>({});
+  const [diagnosis, setDiagnosis] = useState<any>(null);
   const [loading, setLoading] = useState<Record<string, boolean>>({});
   const [logs, setLogs] = useState<string[]>([]);
-  const [orderForm, setOrderForm] = useState({
-    exchange: 'bybit',
-    symbol: 'BTCUSDT',
-    side: 'Buy',
-    quantity: '0.001',
-    price: '30000'
+  const [showApiForm, setShowApiForm] = useState<string | null>(null);
+  const [apiForm, setApiForm] = useState({
+    exchange: '',
+    api_key: '',
+    api_secret: '',
+    passphrase: ''
   });
 
   const addLog = (message: string) => {
@@ -28,148 +29,149 @@ const TradingTest = () => {
     setLogs(prev => [`[${timestamp}] ${message}`, ...prev.slice(0, 19)]);
   };
 
-  const checkBalance = async (exchange: string) => {
-    setLoading(prev => ({ ...prev, [`balance_${exchange}`]: true }));
-    addLog(`💰 Проверяем баланс на ${exchange}...`);
+  const diagnoseDiagnose = async () => {
+    setLoading(prev => ({ ...prev, diagnose: true }));
+    addLog('🔍 Запускаем диагностику API ключей...');
     
     try {
-      const { data, error } = await supabase.functions.invoke('hybrid_trading_engine_2025_11_12_06_50', {
-        body: { 
-          action: 'check_balance', 
-          exchange: exchange 
-        }
+      const { data, error } = await supabase.functions.invoke('api_keys_diagnostics_2025_11_12_07_00', {
+        body: { action: 'diagnose_keys' }
       });
 
       if (error) {
-        console.error('❌ Ошибка проверки баланса:', error);
+        console.error('❌ Ошибка диагностики:', error);
         throw error;
       }
 
-      console.log('✅ Баланс получен:', data);
+      console.log('✅ Диагностика завершена:', data);
+      setDiagnosis(data.diagnosis);
       
-      if (data.success) {
-        setBalances(prev => ({ ...prev, [exchange]: data.balance }));
-        addLog(`✅ Баланс ${exchange}: ${data.balance.total_usdt?.toFixed(2)} USDT`);
-      } else {
-        addLog(`❌ Ошибка баланса ${exchange}: ${data.error}`);
+      addLog(`✅ Диагностика завершена: найдено ${data.diagnosis.total_keys} ключей`);
+      if (data.diagnosis.issues.length > 0) {
+        addLog(`⚠️ Найдено проблем: ${data.diagnosis.issues.length}`);
       }
       
     } catch (error: any) {
-      console.error('❌ Ошибка проверки баланса:', error);
-      addLog(`❌ Ошибка баланса ${exchange}: ${error.message}`);
+      console.error('❌ Ошибка диагностики:', error);
+      addLog(`❌ Ошибка диагностики: ${error.message}`);
     } finally {
-      setLoading(prev => ({ ...prev, [`balance_${exchange}`]: false }));
+      setLoading(prev => ({ ...prev, diagnose: false }));
     }
   };
 
-  const placeTestOrder = async (exchange: string) => {
-    setLoading(prev => ({ ...prev, [`order_${exchange}`]: true }));
-    addLog(`📝 Размещаем тестовый ордер на ${exchange}...`);
+  const testConnection = async (exchange: string) => {
+    setLoading(prev => ({ ...prev, [`test_${exchange}`]: true }));
+    addLog(`🧪 Тестируем подключение к ${exchange}...`);
     
     try {
-      const { data, error } = await supabase.functions.invoke('hybrid_trading_engine_2025_11_12_06_50', {
+      const { data, error } = await supabase.functions.invoke('api_keys_diagnostics_2025_11_12_07_00', {
         body: { 
-          action: 'place_test_order', 
-          exchange: exchange,
-          symbol: orderForm.symbol,
-          side: orderForm.side,
-          quantity: orderForm.quantity,
-          price: orderForm.price
-        }
-      });
-
-      if (error) {
-        console.error('❌ Ошибка размещения ордера:', error);
-        throw error;
-      }
-
-      console.log('✅ Ордер размещен:', data);
-      
-      if (data.success) {
-        addLog(`✅ Ордер ${exchange}: ${data.order.orderId} (${data.order.side} ${data.order.quantity} ${data.order.symbol})`);
-      } else {
-        addLog(`❌ Ошибка ордера ${exchange}: ${data.error}`);
-      }
-      
-    } catch (error: any) {
-      console.error('❌ Ошибка размещения ордера:', error);
-      addLog(`❌ Ошибка ордера ${exchange}: ${error.message}`);
-    } finally {
-      setLoading(prev => ({ ...prev, [`order_${exchange}`]: false }));
-    }
-  };
-
-  const cancelAllOrders = async (exchange: string) => {
-    setLoading(prev => ({ ...prev, [`cancel_${exchange}`]: true }));
-    addLog(`❌ Отменяем все ордера на ${exchange}...`);
-    
-    try {
-      const { data, error } = await supabase.functions.invoke('hybrid_trading_engine_2025_11_12_06_50', {
-        body: { 
-          action: 'cancel_all_orders', 
+          action: 'test_connection',
           exchange: exchange
         }
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ Ошибка тестирования:', error);
+        throw error;
+      }
 
+      console.log('✅ Тест завершен:', data);
+      
       if (data.success) {
-        addLog(`✅ Отменено ордеров на ${exchange}: ${data.cancelled_orders}`);
+        addLog(`✅ ${exchange}: Подключение успешно`);
+        if (data.test_result.balance_test) {
+          addLog(`💰 ${exchange}: Баланс доступен`);
+        }
+      } else {
+        addLog(`❌ ${exchange}: ${data.test_result.error}`);
       }
       
     } catch (error: any) {
-      addLog(`❌ Ошибка отмены ордеров ${exchange}: ${error.message}`);
+      console.error('❌ Ошибка тестирования:', error);
+      addLog(`❌ Тест ${exchange}: ${error.message}`);
     } finally {
-      setLoading(prev => ({ ...prev, [`cancel_${exchange}`]: false }));
+      setLoading(prev => ({ ...prev, [`test_${exchange}`]: false }));
     }
   };
 
-  const closeAllPositions = async (exchange: string) => {
-    setLoading(prev => ({ ...prev, [`close_${exchange}`]: true }));
-    addLog(`🔒 Закрываем все позиции на ${exchange}...`);
+  const updateApiKey = async () => {
+    if (!apiForm.exchange || !apiForm.api_key || !apiForm.api_secret) {
+      addLog('❌ Заполните все обязательные поля');
+      return;
+    }
+
+    setLoading(prev => ({ ...prev, update: true }));
+    addLog(`🔧 Обновляем API ключ для ${apiForm.exchange}...`);
     
     try {
-      const { data, error } = await supabase.functions.invoke('hybrid_trading_engine_2025_11_12_06_50', {
+      const { data, error } = await supabase.functions.invoke('api_keys_diagnostics_2025_11_12_07_00', {
         body: { 
-          action: 'close_all_positions', 
-          exchange: exchange
+          action: 'update_api_key',
+          exchange: apiForm.exchange,
+          api_key: apiForm.api_key,
+          api_secret: apiForm.api_secret,
+          passphrase: apiForm.passphrase || undefined
         }
+      });
+
+      if (error) {
+        console.error('❌ Ошибка обновления:', error);
+        throw error;
+      }
+
+      console.log('✅ Ключ обновлен:', data);
+      addLog(`✅ API ключ для ${apiForm.exchange} обновлен`);
+      
+      // Сбрасываем форму
+      setApiForm({ exchange: '', api_key: '', api_secret: '', passphrase: '' });
+      setShowApiForm(null);
+      
+      // Перезапускаем диагностику
+      setTimeout(() => diagnoseDiagnose(), 1000);
+      
+    } catch (error: any) {
+      console.error('❌ Ошибка обновления:', error);
+      addLog(`❌ Ошибка обновления ${apiForm.exchange}: ${error.message}`);
+    } finally {
+      setLoading(prev => ({ ...prev, update: false }));
+    }
+  };
+
+  const resetAllKeys = async () => {
+    if (!confirm('Вы уверены, что хотите удалить ВСЕ API ключи?')) {
+      return;
+    }
+
+    setLoading(prev => ({ ...prev, reset: true }));
+    addLog('🗑️ Удаляем все API ключи...');
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('api_keys_diagnostics_2025_11_12_07_00', {
+        body: { action: 'reset_all_keys' }
       });
 
       if (error) throw error;
 
-      if (data.success) {
-        addLog(`✅ Закрыто позиций на ${exchange}: ${data.closed_positions}`);
-      }
+      addLog('✅ Все API ключи удалены');
+      setDiagnosis(null);
       
     } catch (error: any) {
-      addLog(`❌ Ошибка закрытия позиций ${exchange}: ${error.message}`);
+      addLog(`❌ Ошибка удаления: ${error.message}`);
     } finally {
-      setLoading(prev => ({ ...prev, [`close_${exchange}`]: false }));
+      setLoading(prev => ({ ...prev, reset: false }));
     }
   };
 
-  const testTelegram = async () => {
-    addLog('📱 Тестируем Telegram уведомления...');
-    
-    try {
-      const { data, error } = await supabase.functions.invoke('funding_arbitrage_bot_2025_11_12_05_20', {
-        body: { 
-          action: 'send_telegram_notification',
-          message: '🤖 Торговый бот тестирование!\n\n✅ Проверка баланса работает\n📝 Тестовые ордера размещаются\n⏰ ' + new Date().toLocaleString('ru-RU')
-        }
-      });
-
-      if (error) throw error;
-
-      if (data.success) {
-        addLog('✅ Telegram уведомление отправлено');
-      }
-      
-    } catch (error: any) {
-      addLog(`❌ Ошибка Telegram: ${error.message}`);
-    }
+  const openApiForm = (exchange: string) => {
+    setApiForm(prev => ({ ...prev, exchange }));
+    setShowApiForm(exchange);
   };
+
+  // Автоматическая диагностика при загрузке
+  useEffect(() => {
+    diagnoseDiagnose();
+  }, []);
 
   const exchanges = [
     { id: 'bybit', name: 'Bybit', icon: '🟡', color: 'bg-yellow-600' },
@@ -185,188 +187,257 @@ const TradingTest = () => {
         <Card className="bg-gray-800 border-gray-700">
           <CardHeader>
             <CardTitle className="text-white text-center">
-              🚀 Торговый Бот - Тестирование Функций
+              🔧 Диагностика и Управление API Ключами
             </CardTitle>
           </CardHeader>
           <CardContent className="text-center">
             <p className="text-gray-300 mb-4">
-              Проверка баланса, размещение тестовых ордеров и управление позициями
+              Проверьте состояние ваших API ключей и исправьте проблемы
             </p>
-            <Button onClick={testTelegram} className="bg-blue-600 hover:bg-blue-700">
-              📱 Тест Telegram
-            </Button>
-          </CardContent>
-        </Card>
-
-        {/* Форма ордера */}
-        <Card className="bg-gray-800 border-gray-700">
-          <CardHeader>
-            <CardTitle className="text-white">📝 Параметры Тестового Ордера</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-              <div>
-                <Label className="text-gray-300">Биржа</Label>
-                <Select value={orderForm.exchange} onValueChange={(value) => setOrderForm(prev => ({ ...prev, exchange: value }))}>
-                  <SelectTrigger className="bg-gray-700 border-gray-600">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="bg-gray-700">
-                    {exchanges.map(exchange => (
-                      <SelectItem key={exchange.id} value={exchange.id}>
-                        {exchange.icon} {exchange.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              <div>
-                <Label className="text-gray-300">Символ</Label>
-                <Input
-                  value={orderForm.symbol}
-                  onChange={(e) => setOrderForm(prev => ({ ...prev, symbol: e.target.value }))}
-                  className="bg-gray-700 border-gray-600"
-                  placeholder="BTCUSDT"
-                />
-              </div>
-              
-              <div>
-                <Label className="text-gray-300">Сторона</Label>
-                <Select value={orderForm.side} onValueChange={(value) => setOrderForm(prev => ({ ...prev, side: value }))}>
-                  <SelectTrigger className="bg-gray-700 border-gray-600">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="bg-gray-700">
-                    <SelectItem value="Buy">🟢 Buy</SelectItem>
-                    <SelectItem value="Sell">🔴 Sell</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              <div>
-                <Label className="text-gray-300">Количество</Label>
-                <Input
-                  value={orderForm.quantity}
-                  onChange={(e) => setOrderForm(prev => ({ ...prev, quantity: e.target.value }))}
-                  className="bg-gray-700 border-gray-600"
-                  placeholder="0.001"
-                />
-              </div>
-              
-              <div>
-                <Label className="text-gray-300">Цена</Label>
-                <Input
-                  value={orderForm.price}
-                  onChange={(e) => setOrderForm(prev => ({ ...prev, price: e.target.value }))}
-                  className="bg-gray-700 border-gray-600"
-                  placeholder="30000"
-                />
-              </div>
+            <div className="space-x-4">
+              <Button 
+                onClick={diagnoseDiagnose} 
+                disabled={loading.diagnose}
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                {loading.diagnose ? '🔄 Диагностика...' : '🔍 Запустить диагностику'}
+              </Button>
+              <Button 
+                onClick={resetAllKeys} 
+                disabled={loading.reset}
+                variant="destructive"
+              >
+                {loading.reset ? '🔄 Удаление...' : '🗑️ Удалить все ключи'}
+              </Button>
             </div>
           </CardContent>
         </Card>
 
-        {/* Биржи */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {exchanges.map(exchange => (
-            <Card key={exchange.id} className="bg-gray-800 border-gray-700">
-              <CardHeader>
-                <CardTitle className="text-white flex items-center justify-between">
-                  <span>{exchange.icon} {exchange.name}</span>
-                  <Badge variant={balances[exchange.id] ? "default" : "secondary"}>
-                    {balances[exchange.id] ? "💰 Баланс загружен" : "⏳ Нет данных"}
-                  </Badge>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
+        {/* Результаты диагностики */}
+        {diagnosis && (
+          <Card className="bg-gray-800 border-gray-700">
+            <CardHeader>
+              <CardTitle className="text-white">📊 Результаты Диагностики</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 
-                {/* Баланс */}
-                {balances[exchange.id] && (
-                  <div className="bg-gray-700 p-3 rounded">
-                    <h4 className="text-sm font-semibold mb-2">💰 Баланс:</h4>
-                    <div className="space-y-1 text-sm">
-                      <div className="flex justify-between">
-                        <span>USDT:</span>
-                        <span className="font-mono">{balances[exchange.id].USDT?.total?.toFixed(2) || '0.00'}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Доступно:</span>
-                        <span className="font-mono text-green-400">{balances[exchange.id].USDT?.available?.toFixed(2) || '0.00'}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>BTC:</span>
-                        <span className="font-mono">{balances[exchange.id].BTC?.total?.toFixed(8) || '0.00000000'}</span>
-                      </div>
-                      <div className="flex justify-between font-semibold">
-                        <span>Всего USD:</span>
-                        <span className="font-mono">{balances[exchange.id].total_usdt?.toFixed(2) || '0.00'}</span>
-                      </div>
+                {/* Общая информация */}
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold text-white">📈 Общая информация</h3>
+                  <div className="bg-gray-700 p-4 rounded space-y-2">
+                    <div className="flex justify-between">
+                      <span>Всего ключей:</span>
+                      <Badge variant={diagnosis.total_keys > 0 ? "default" : "secondary"}>
+                        {diagnosis.total_keys}
+                      </Badge>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Проблем найдено:</span>
+                      <Badge variant={diagnosis.issues.length === 0 ? "default" : "destructive"}>
+                        {diagnosis.issues.length}
+                      </Badge>
                     </div>
                   </div>
-                )}
+                </div>
 
-                {/* Кнопки управления */}
-                <div className="space-y-2">
-                  <Button
-                    onClick={() => checkBalance(exchange.id)}
-                    disabled={loading[`balance_${exchange.id}`]}
-                    className={`w-full ${exchange.color} hover:opacity-80`}
-                  >
-                    {loading[`balance_${exchange.id}`] ? (
-                      <div className="flex items-center">
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                        Проверяем...
+                {/* Проблемы */}
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold text-white">⚠️ Найденные проблемы</h3>
+                  <div className="bg-gray-700 p-4 rounded max-h-40 overflow-y-auto">
+                    {diagnosis.issues.length > 0 ? (
+                      <div className="space-y-1">
+                        {diagnosis.issues.map((issue: string, index: number) => (
+                          <div key={index} className="text-sm text-red-400">
+                            {issue}
+                          </div>
+                        ))}
                       </div>
                     ) : (
-                      `💰 Проверить баланс`
+                      <p className="text-green-400 text-center">✅ Проблем не найдено</p>
                     )}
-                  </Button>
-                  
-                  <Button
-                    onClick={() => placeTestOrder(exchange.id)}
-                    disabled={loading[`order_${exchange.id}`]}
-                    className="w-full bg-green-600 hover:bg-green-700"
-                  >
-                    {loading[`order_${exchange.id}`] ? (
-                      <div className="flex items-center">
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                        Размещаем...
-                      </div>
-                    ) : (
-                      `📝 Тестовый ордер`
-                    )}
-                  </Button>
-                  
-                  <div className="grid grid-cols-2 gap-2">
-                    <Button
-                      onClick={() => cancelAllOrders(exchange.id)}
-                      disabled={loading[`cancel_${exchange.id}`]}
-                      variant="outline"
-                      className="border-orange-600 text-orange-400 hover:bg-orange-600"
-                    >
-                      {loading[`cancel_${exchange.id}`] ? '⏳' : '❌ Отменить'}
-                    </Button>
-                    
-                    <Button
-                      onClick={() => closeAllPositions(exchange.id)}
-                      disabled={loading[`close_${exchange.id}`]}
-                      variant="outline"
-                      className="border-red-600 text-red-400 hover:bg-red-600"
-                    >
-                      {loading[`close_${exchange.id}`] ? '⏳' : '🔒 Закрыть'}
-                    </Button>
                   </div>
                 </div>
-              </CardContent>
-            </Card>
-          ))}
+              </div>
+
+              {/* Рекомендации */}
+              <div className="mt-6">
+                <h3 className="text-lg font-semibold text-white mb-4">💡 Рекомендации</h3>
+                <div className="bg-gray-700 p-4 rounded">
+                  {diagnosis.recommendations.map((rec: string, index: number) => (
+                    <div key={index} className="text-sm text-blue-400 mb-1">
+                      {rec}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* API ключи по биржам */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {exchanges.map(exchange => {
+            const exchangeData = diagnosis?.keys_by_exchange?.[exchange.id];
+            return (
+              <Card key={exchange.id} className="bg-gray-800 border-gray-700">
+                <CardHeader>
+                  <CardTitle className="text-white flex items-center justify-between">
+                    <span>{exchange.icon} {exchange.name}</span>
+                    <Badge variant={exchangeData ? "default" : "secondary"}>
+                      {exchangeData ? (exchangeData.is_placeholder ? "🟡 Тестовый" : "✅ Настроен") : "❌ Нет ключей"}
+                    </Badge>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  
+                  {/* Информация о ключах */}
+                  {exchangeData && (
+                    <div className="bg-gray-700 p-3 rounded">
+                      <h4 className="text-sm font-semibold mb-2">🔑 Информация о ключах:</h4>
+                      <div className="space-y-1 text-sm">
+                        <div className="flex justify-between">
+                          <span>API Key:</span>
+                          <span className="font-mono">{exchangeData.api_key}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Длина ключа:</span>
+                          <span className="font-mono">{exchangeData.api_key_length}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Secret:</span>
+                          <span className="font-mono">{exchangeData.api_secret}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Длина секрета:</span>
+                          <span className="font-mono">{exchangeData.api_secret_length}</span>
+                        </div>
+                        {exchange.id === 'gate' && (
+                          <div className="flex justify-between">
+                            <span>Passphrase:</span>
+                            <span className="font-mono">{exchangeData.passphrase}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Кнопки управления */}
+                  <div className="space-y-2">
+                    <Button
+                      onClick={() => openApiForm(exchange.id)}
+                      className={`w-full ${exchange.color} hover:opacity-80`}
+                    >
+                      🔧 {exchangeData ? 'Обновить ключи' : 'Добавить ключи'}
+                    </Button>
+                    
+                    {exchangeData && (
+                      <Button
+                        onClick={() => testConnection(exchange.id)}
+                        disabled={loading[`test_${exchange.id}`]}
+                        className="w-full bg-green-600 hover:bg-green-700"
+                      >
+                        {loading[`test_${exchange.id}`] ? (
+                          <div className="flex items-center">
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                            Тестируем...
+                          </div>
+                        ) : (
+                          `🧪 Тест подключения`
+                        )}
+                      </Button>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
+
+        {/* Форма добавления/обновления API ключей */}
+        {showApiForm && (
+          <Card className="bg-gray-800 border-gray-700">
+            <CardHeader>
+              <CardTitle className="text-white">
+                🔑 {apiForm.exchange ? `Настройка API ключей для ${exchanges.find(e => e.id === apiForm.exchange)?.name}` : 'Настройка API ключей'}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label className="text-gray-300">Биржа</Label>
+                  <Select value={apiForm.exchange} onValueChange={(value) => setApiForm(prev => ({ ...prev, exchange: value }))}>
+                    <SelectTrigger className="bg-gray-700 border-gray-600">
+                      <SelectValue placeholder="Выберите биржу" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-gray-700">
+                      {exchanges.map(exchange => (
+                        <SelectItem key={exchange.id} value={exchange.id}>
+                          {exchange.icon} {exchange.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              
+              <div>
+                <Label className="text-gray-300">API Key *</Label>
+                <Input
+                  value={apiForm.api_key}
+                  onChange={(e) => setApiForm(prev => ({ ...prev, api_key: e.target.value }))}
+                  className="bg-gray-700 border-gray-600"
+                  placeholder="Вставьте ваш API ключ"
+                />
+              </div>
+              
+              <div>
+                <Label className="text-gray-300">API Secret *</Label>
+                <Textarea
+                  value={apiForm.api_secret}
+                  onChange={(e) => setApiForm(prev => ({ ...prev, api_secret: e.target.value }))}
+                  className="bg-gray-700 border-gray-600"
+                  placeholder="Вставьте ваш API секрет"
+                  rows={3}
+                />
+              </div>
+              
+              {apiForm.exchange === 'gate' && (
+                <div>
+                  <Label className="text-gray-300">Passphrase (для Gate.io) *</Label>
+                  <Input
+                    value={apiForm.passphrase}
+                    onChange={(e) => setApiForm(prev => ({ ...prev, passphrase: e.target.value }))}
+                    className="bg-gray-700 border-gray-600"
+                    placeholder="Passphrase для Gate.io"
+                  />
+                </div>
+              )}
+              
+              <div className="flex space-x-4">
+                <Button
+                  onClick={updateApiKey}
+                  disabled={loading.update}
+                  className="bg-green-600 hover:bg-green-700"
+                >
+                  {loading.update ? '🔄 Сохранение...' : '💾 Сохранить ключи'}
+                </Button>
+                <Button
+                  onClick={() => setShowApiForm(null)}
+                  variant="outline"
+                  className="border-gray-600"
+                >
+                  ❌ Отмена
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Логи */}
         <Card className="bg-gray-800 border-gray-700">
           <CardHeader>
-            <CardTitle className="text-white">📝 Логи Торговых Операций</CardTitle>
+            <CardTitle className="text-white">📝 Логи Операций</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="bg-gray-900 p-4 rounded max-h-96 overflow-y-auto">
@@ -379,7 +450,7 @@ const TradingTest = () => {
                   ))}
                 </div>
               ) : (
-                <p className="text-gray-500 text-center">Логи торговых операций появятся здесь...</p>
+                <p className="text-gray-500 text-center">Логи операций появятся здесь...</p>
               )}
             </div>
             <Button 
@@ -389,29 +460,6 @@ const TradingTest = () => {
             >
               🗑️ Очистить логи
             </Button>
-          </CardContent>
-        </Card>
-
-        {/* Информация о пользователе */}
-        <Card className="bg-gray-800 border-gray-700">
-          <CardHeader>
-            <CardTitle className="text-white">👤 Информация о пользователе</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-              <div>
-                <span className="text-gray-400">Email:</span>
-                <div className="font-mono">{user?.email}</div>
-              </div>
-              <div>
-                <span className="text-gray-400">ID:</span>
-                <div className="font-mono text-xs">{user?.id}</div>
-              </div>
-              <div>
-                <span className="text-gray-400">Создан:</span>
-                <div>{user?.created_at ? new Date(user.created_at).toLocaleString('ru-RU') : 'N/A'}</div>
-              </div>
-            </div>
           </CardContent>
         </Card>
 
@@ -425,11 +473,11 @@ const TradingTest = () => {
           </Button>
           <Button 
             onClick={() => {
-              alert('Для восстановления полной панели обратитесь к администратору');
+              alert('После настройки API ключей вернитесь к торговому тестированию');
             }} 
             className="bg-blue-600 hover:bg-blue-700"
           >
-            🚀 Восстановить полную панель
+            🚀 К торговому тестированию
           </Button>
         </div>
       </div>
@@ -456,7 +504,7 @@ const AuthenticatedApp = () => {
     return <AuthForm />;
   }
 
-  return <TradingTest />;
+  return <ApiKeysDiagnostics />;
 };
 
 function App() {
