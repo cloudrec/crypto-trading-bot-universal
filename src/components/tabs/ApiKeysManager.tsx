@@ -357,12 +357,16 @@ const ApiKeysManager: React.FC<ApiKeysManagerProps> = ({ onKeysUpdate }) => {
         functionName = "bybit_alternative_no_sign_url_2025_11_12_11_25";
       } else if (exchange === "gate") {
         functionName = "gate_wider_margins_v24_2025_11_09_18_25";
+      } else if (exchange === "kucoin") {
+        functionName = "kucoin_leverage_fixed_v27_2025_11_09_19_20";
       } else {
         functionName = "balance_checker_bybit_v2_fixed_2025_11_12_10_50";
       }
       
       let requestBody;
       if (exchange === "gate") {
+        requestBody = { action: "get_balance", user_id: user?.id };
+      } else if (exchange === "kucoin") {
         requestBody = { action: "get_balance", user_id: user?.id };
       } else {
         requestBody = { action: "check_balance", exchange: exchange };
@@ -379,6 +383,19 @@ const ApiKeysManager: React.FC<ApiKeysManagerProps> = ({ onKeysUpdate }) => {
           connected: data.success,
           balance: {
             exchange: "gate",
+            USDT: { total: data.balance || 0, available: data.balance || 0 },
+            BTC: { total: 0, available: 0 },
+            total_usdt: data.balance || 0
+          },
+          error: data.success ? null : data.error,
+          timestamp: new Date().toISOString()
+        };
+      } else if (exchange === "kucoin") {
+        // KuCoin возвращает другой формат
+        status = {
+          connected: data.success,
+          balance: {
+            exchange: "kucoin",
             USDT: { total: data.balance || 0, available: data.balance || 0 },
             BTC: { total: 0, available: 0 },
             total_usdt: data.balance || 0

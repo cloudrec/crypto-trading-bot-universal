@@ -24,7 +24,7 @@ serve(async (req) => {
 
     // Получаем API ключи пользователя
     const { data: apiKeys, error: keysError } = await supabaseClient
-      .from('api_keys_dev')
+      .from('api_keys_2025_11_12_05_30')
       .select('*')
       .eq('user_id', user_id)
       .eq('exchange', 'kucoin')
@@ -79,6 +79,26 @@ serve(async (req) => {
 });
 
 // Функция создания подписи для KuCoin API
+// Функция создания подписи Passphrase для KuCoin API
+async function createKuCoinPassphraseSignature(passphrase: string, secret: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const keyData = encoder.encode(secret);
+  const messageData = encoder.encode(passphrase);
+  
+  const cryptoKey = await crypto.subtle.importKey(
+    "raw",
+    keyData,
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+  
+  const signature = await crypto.subtle.sign("HMAC", cryptoKey, messageData);
+  const base64Signature = btoa(String.fromCharCode(...new Uint8Array(signature)));
+  
+  return base64Signature;
+}
+
 async function createKuCoinSignature(timestamp: string, method: string, endpoint: string, body: string, secret: string): Promise<string> {
   const encoder = new TextEncoder();
   const keyData = encoder.encode(secret);
@@ -108,8 +128,8 @@ async function handleKuCoinBalance(apiKeys: any) {
     const endpoint = '/api/v1/account-overview?currency=USDT';
     const body = '';
     
-    const signature = await createKuCoinSignature(timestamp, method, endpoint, body, apiKeys.api_secret);
-    const passphrase = await createKuCoinSignature(timestamp, method, endpoint, apiKeys.passphrase || '', apiKeys.api_secret);
+    const signature = await createKuCoinSignature(timestamp, method, endpoint, body, apiKeys.secret);
+    const passphrase = await createKuCoinSignature(timestamp, method, endpoint, apiKeys.passphrase || '', apiKeys.secret);
     
     const response = await fetch(`https://api-futures.kucoin.com${endpoint}`, {
       method: method,
@@ -230,8 +250,8 @@ async function handleKuCoinOrderWithTPSL(apiKeys: any, settings: any, orderType:
       size: finalQuantity
     });
     
-    const signature1 = await createKuCoinSignature(timestamp1, method1, endpoint1, body1, apiKeys.api_secret);
-    const passphrase1 = await createKuCoinSignature(timestamp1, method1, endpoint1, apiKeys.passphrase || '', apiKeys.api_secret);
+    const signature1 = await createKuCoinSignature(timestamp1, method1, endpoint1, body1, apiKeys.secret);
+    const passphrase1 = await createKuCoinSignature(timestamp1, method1, endpoint1, apiKeys.passphrase || '', apiKeys.secret);
     
     console.log(`🟩 KUCOIN V27 RESTORED: Order body: ${body1}`);
     
@@ -273,8 +293,8 @@ async function handleKuCoinOrderWithTPSL(apiKeys: any, settings: any, orderType:
       reduceOnly: true
     });
     
-    const signature2 = await createKuCoinSignature(timestamp2, method1, endpoint1, tpBody, apiKeys.api_secret);
-    const passphrase2 = await createKuCoinSignature(timestamp2, method1, endpoint1, apiKeys.passphrase || '', apiKeys.api_secret);
+    const signature2 = await createKuCoinSignature(timestamp2, method1, endpoint1, tpBody, apiKeys.secret);
+    const passphrase2 = await createKuCoinSignature(timestamp2, method1, endpoint1, apiKeys.passphrase || '', apiKeys.secret);
     
     const tpResponse = await fetch(`https://api-futures.kucoin.com${endpoint1}`, {
       method: method1,
@@ -312,8 +332,8 @@ async function handleKuCoinOrderWithTPSL(apiKeys: any, settings: any, orderType:
       reduceOnly: true
     });
     
-    const signature3 = await createKuCoinSignature(timestamp3, method1, endpoint1, slBody, apiKeys.api_secret);
-    const passphrase3 = await createKuCoinSignature(timestamp3, method1, endpoint1, apiKeys.passphrase || '', apiKeys.api_secret);
+    const signature3 = await createKuCoinSignature(timestamp3, method1, endpoint1, slBody, apiKeys.secret);
+    const passphrase3 = await createKuCoinSignature(timestamp3, method1, endpoint1, apiKeys.passphrase || '', apiKeys.secret);
     
     const slResponse = await fetch(`https://api-futures.kucoin.com${endpoint1}`, {
       method: method1,
@@ -373,8 +393,8 @@ async function handleKuCoinPositions(apiKeys: any) {
     const endpoint = '/api/v1/positions';
     const body = '';
     
-    const signature = await createKuCoinSignature(timestamp, method, endpoint, body, apiKeys.api_secret);
-    const passphrase = await createKuCoinSignature(timestamp, method, endpoint, apiKeys.passphrase || '', apiKeys.api_secret);
+    const signature = await createKuCoinSignature(timestamp, method, endpoint, body, apiKeys.secret);
+    const passphrase = await createKuCoinSignature(timestamp, method, endpoint, apiKeys.passphrase || '', apiKeys.secret);
     
     const response = await fetch(`https://api-futures.kucoin.com${endpoint}`, {
       method: method,
@@ -461,8 +481,8 @@ async function handleKuCoinClosePositions(apiKeys: any) {
           reduceOnly: true
         });
         
-        const signature = await createKuCoinSignature(timestamp, method, endpoint, closeBody, apiKeys.api_secret);
-        const passphrase = await createKuCoinSignature(timestamp, method, endpoint, apiKeys.passphrase || '', apiKeys.api_secret);
+        const signature = await createKuCoinSignature(timestamp, method, endpoint, closeBody, apiKeys.secret);
+        const passphrase = await createKuCoinSignature(timestamp, method, endpoint, apiKeys.passphrase || '', apiKeys.secret);
         
         const response = await fetch(`https://api-futures.kucoin.com${endpoint}`, {
           method: method,
@@ -541,8 +561,8 @@ async function handleKuCoinCancelOrders(apiKeys: any) {
     const endpoint = '/api/v1/orders';
     const body = '';
     
-    const signature = await createKuCoinSignature(timestamp, method, endpoint, body, apiKeys.api_secret);
-    const passphrase = await createKuCoinSignature(timestamp, method, endpoint, apiKeys.passphrase || '', apiKeys.api_secret);
+    const signature = await createKuCoinSignature(timestamp, method, endpoint, body, apiKeys.secret);
+    const passphrase = await createKuCoinSignature(timestamp, method, endpoint, apiKeys.passphrase || '', apiKeys.secret);
     
     const response = await fetch(`https://api-futures.kucoin.com${endpoint}`, {
       method: method,
