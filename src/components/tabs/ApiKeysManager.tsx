@@ -219,8 +219,8 @@ const ApiKeysManager: React.FC<ApiKeysManagerProps> = ({ onKeysUpdate }) => {
     try {
       console.log('🔬 Запускаем детальное тестирование Bybit...');
       
-      const { data, error } = await supabase.functions.invoke('bybit_debug_detailed_2025_11_12_11_00', {
-        body: { action: 'test_bybit', exchange: 'bybit' }
+      const { data, error } = await supabase.functions.invoke('bybit_v5_fixed_signature_2025_11_12_11_10', {
+        body: { action: 'check_balance', exchange: 'bybit' }
       });
       
       if (error) {
@@ -234,6 +234,19 @@ const ApiKeysManager: React.FC<ApiKeysManagerProps> = ({ onKeysUpdate }) => {
       }
       
       console.log('🔬 Результат детального тестирования Bybit:', data);
+      
+      // Выводим детальную debug информацию
+      if (data.debug) {
+        console.log('🔍 ДЕТАЛЬНАЯ DEBUG ИНФОРМАЦИЯ:');
+        console.log('⏰ Timestamp:', data.debug.timestamp);
+        console.log('📝 Sign String:', data.debug.signString);
+        console.log('✍️ Signature:', data.debug.signature);
+        console.log('🌐 URL:', data.debug.url);
+        console.log('📋 Headers:', data.debug.headers);
+        if (data.debug.response) {
+          console.log('📊 Response:', data.debug.response);
+        }
+      }
       
       if (data.success) {
         toast({
@@ -267,7 +280,12 @@ const ApiKeysManager: React.FC<ApiKeysManagerProps> = ({ onKeysUpdate }) => {
     try {
       console.log(`🔍 Проверяем подключение к ${exchange}...`);
 
-      const { data, error } = await supabase.functions.invoke('balance_checker_bybit_v2_fixed_2025_11_12_10_50', {
+      // Используем специальную функцию для Bybit
+      const functionName = exchange === 'bybit' 
+        ? 'bybit_v5_fixed_signature_2025_11_12_11_10'
+        : 'balance_checker_bybit_v2_fixed_2025_11_12_10_50';
+      
+      const { data, error } = await supabase.functions.invoke(functionName, {
         body: { action: 'check_balance', exchange: exchange }
       });
 
