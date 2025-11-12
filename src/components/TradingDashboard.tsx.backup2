@@ -9,8 +9,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from '@/hooks/use-toast';
 import TradingConfigManager from '@/components/TradingConfigManager';
 import ApiKeysManager from '@/components/ApiKeysManager';
-import SubscriptionManager from '@/components/SubscriptionManager';
-import AdminPanel from '@/components/AdminPanel';
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -150,7 +148,7 @@ export default function TradingDashboard() {
 
     setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke('real_trading_engine_2025_11_12_03_55', {
+      const { data, error } = await supabase.functions.invoke('funding_arbitrage_engine_2025_11_12_00_10', {
         body: {
           action,
           exchange: selectedExchange,
@@ -292,14 +290,12 @@ export default function TradingDashboard() {
         </div>
 
         <Tabs defaultValue="trading" className="space-y-6">
-          <TabsList className={`grid w-full ${isAdmin ? "grid-cols-7" : "grid-cols-6"} bg-gray-800`}>
+          <TabsList className="grid w-full grid-cols-5 bg-gray-800">
             <TabsTrigger value="trading">Торговля</TabsTrigger>
             <TabsTrigger value="positions">Позиции</TabsTrigger>
             <TabsTrigger value="config">Конфигурация</TabsTrigger>
             <TabsTrigger value="api-keys">API Ключи</TabsTrigger>
             <TabsTrigger value="logs">Логи</TabsTrigger>
-            <TabsTrigger value="subscription">Подписка</TabsTrigger>
-            {isAdmin && <TabsTrigger value="admin">Админ</TabsTrigger>}
           </TabsList>
 
           {/* Trading Tab */}
@@ -417,15 +413,6 @@ export default function TradingDashboard() {
               </Card>
             </div>
           </TabsContent>
-n          {/* Subscription Tab */}
-          <TabsContent value="subscription">
-            <SubscriptionManager />
-          </TabsContent>
-
-          {/* Admin Tab */}
-          <TabsContent value="admin">
-            <AdminPanel />
-          </TabsContent>
 
           {/* Positions Tab */}
           <TabsContent value="positions">
@@ -468,15 +455,6 @@ n          {/* Subscription Tab */}
               </CardContent>
             </Card>
           </TabsContent>
-n          {/* Subscription Tab */}
-          <TabsContent value="subscription">
-            <SubscriptionManager />
-          </TabsContent>
-
-          {/* Admin Tab */}
-          <TabsContent value="admin">
-            <AdminPanel />
-          </TabsContent>
 
           {/* Configuration Tab */}
           <TabsContent value="config">
@@ -485,28 +463,10 @@ n          {/* Subscription Tab */}
               onExchangeChange={setSelectedExchange}
             />
           </TabsContent>
-n          {/* Subscription Tab */}
-          <TabsContent value="subscription">
-            <SubscriptionManager />
-          </TabsContent>
-
-          {/* Admin Tab */}
-          <TabsContent value="admin">
-            <AdminPanel />
-          </TabsContent>
 
           {/* API Keys Tab */}
           <TabsContent value="api-keys">
             <ApiKeysManager />
-          </TabsContent>
-n          {/* Subscription Tab */}
-          <TabsContent value="subscription">
-            <SubscriptionManager />
-          </TabsContent>
-
-          {/* Admin Tab */}
-          <TabsContent value="admin">
-            <AdminPanel />
           </TabsContent>
 
           {/* Logs Tab */}
@@ -555,15 +515,6 @@ n          {/* Subscription Tab */}
                 </div>
               </CardContent>
             </Card>
-          </TabsContent>
-n          {/* Subscription Tab */}
-          <TabsContent value="subscription">
-            <SubscriptionManager />
-          </TabsContent>
-
-          {/* Admin Tab */}
-          <TabsContent value="admin">
-            <AdminPanel />
           </TabsContent>
         </Tabs>
       </div>

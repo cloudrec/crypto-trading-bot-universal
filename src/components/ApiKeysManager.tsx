@@ -1,469 +1,256 @@
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Separator } from '@/components/ui/separator';
-import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
-// DEV: Убираем ненужный импорт
-import { 
-  Key, 
-  Eye, 
-  EyeOff, 
-  Save, 
-  Trash2,
-  Plus,
-  AlertTriangle,
-  CheckCircle
-} from 'lucide-react';
+import { toast } from '@/hooks/use-toast';
+import { Eye, EyeOff, Save, Key } from 'lucide-react';
 
 interface ApiKey {
-  id?: string;
+  id: string;
   exchange: string;
   api_key: string;
   api_secret: string;
-  passphrase?: string;
-  testnet: boolean;
   is_active: boolean;
 }
 
-const ApiKeysManager: React.FC = () => {
-  const { toast } = useToast();
-const [user, setUser] = useState<any>(null); // DEV: Состояние пользователя
+const EXCHANGES = [
+  { value: 'bybit', label: 'Bybit', icon: '🟡', docs: 'https://bybit-exchange.github.io/docs/v5/intro' },
+  { value: 'binance', label: 'Binance', icon: '🟨', docs: 'https://binance-docs.github.io/apidocs/futures/en/' },
+  { value: 'gate', label: 'Gate.io', icon: '🟦', docs: 'https://www.gate.io/docs/developers/apiv4/en/' },
+  { value: 'kucoin', label: 'KuCoin', icon: '🟩', docs: 'https://docs.kucoin.com/futures/' },
+  { value: 'okx', label: 'OKX', icon: '⚫', docs: 'https://www.okx.com/docs-v5/en/' },
+  { value: 'mexc', label: 'MEXC', icon: '🔵', docs: 'https://mexcdevelop.github.io/apidocs/contract_v1_en/' }
+];
+
+export default function ApiKeysManager() {
+  const { user } = useAuth();
+  const [apiKeys, setApiKeys] = useState<Record<string, ApiKey>>({});
+  const [showSecrets, setShowSecrets] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(false);
-  const [apiKeys, setApiKeys] = useState<ApiKey[]>([]);
-  const [showSecrets, setShowSecrets] = useState<{[key: string]: boolean}>({});
-  const [newApiKey, setNewApiKey] = useState<ApiKey>({
-    exchange: 'bybit',
-    api_key: '',
-    api_secret: '',
-    passphrase: '',
-    testnet: false,
-    is_active: true
-  });
+  const [formData, setFormData] = useState<Record<string, { apiKey: string; apiSecret: string }>>({});
 
-// DEV: Получаем пользователя при загрузке
   useEffect(() => {
-    const getUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      setUser(user);
-      if (user) {
-        loadApiKeys();
-      }
-    };
-    getUser();
-  }, []);
+    if (user) {
+      loadApiKeys();
+    }
+  }, [user]);
 
-const loadApiKeys = async () => {
+  const loadApiKeys = async () => {
+    if (!user) return;
+
     try {
-      if (!user?.id) {
-        console.log('DEV: No user, skipping API keys load');
-        return;
-      }
-      
-      setLoading(true);
-      console.log('DEV: Loading API keys for user:', user.id, user.email);
-      
-      // DEV: Используем DEV таблицу и фильтруем по user_id
       const { data, error } = await supabase
         .from('api_keys_dev')
         .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
+        .eq('user_id', user.id);
 
       if (error) throw error;
+
+      const keysMap: Record<string, ApiKey> = {};
+      const formMap: Record<string, { apiKey: string; apiSecret: string }> = {};
       
-if (data) {
-        console.log('Loaded API keys:', data);
-        setApiKeys(data);
-      }
-    } catch (error: any) {
-      toast({
-        title: "Ошибка загрузки",
-        description: error.message,
-        variant: "destructive",
+      data?.forEach(key => {
+        keysMap[key.exchange] = key;
+        formMap[key.exchange] = {
+          apiKey: key.api_key || '',
+          apiSecret: key.api_secret || ''
+        };
       });
-    } finally {
-      setLoading(false);
+      
+      setApiKeys(keysMap);
+      setFormData(formMap);
+    } catch (error: any) {
+      console.error('Ошибка загрузки API ключей:', error);
     }
   };
 
-  const saveApiKey = async () => {
+  const saveApiKey = async (exchange: string) => {
+    if (!user) return;
+
+    const { apiKey, apiSecret } = formData[exchange] || {};
+    if (!apiKey || !apiSecret) {
+      toast({
+        title: "Ошибка",
+        description: "Заполните оба поля",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setLoading(true);
     try {
-      if (!newApiKey.api_key || !newApiKey.api_secret) {
-        toast({
-          title: "Ошибка",
-          description: "API Key и Secret обязательны для заполнения",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      if ((newApiKey.exchange === 'kucoin') && !newApiKey.passphrase) {
-        toast({
-          title: "Ошибка",
-          description: "Для KuCoin требуется Passphrase",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      setLoading(true);
-
-// DEV: Добавляем user_id вручную
-      console.log('DEV: Saving API keys for user:', user?.id, user?.email);
-      
-      const { error } = await supabase
-        .from('api_keys_dev') // DEV таблица
+      const { data, error } = await supabase
+        .from('api_keys_dev')
         .upsert({
-          user_id: user?.id, // Обязательно добавляем user_id
-          exchange: newApiKey.exchange,
-          api_key: newApiKey.api_key,
-          api_secret: newApiKey.api_secret,
-          passphrase: newApiKey.passphrase || null,
-          is_testnet: newApiKey.testnet, // Правильное название поля
-        }, {
-          onConflict: 'user_id,exchange' // Обновляем если уже существует
-        });
-        
-      console.log('DEV: API keys save result:', { error });
+          user_id: user.id,
+          exchange,
+          api_key: apiKey,
+          api_secret: apiSecret,
+          is_active: true
+        })
+        .select()
+        .single();
 
       if (error) throw error;
 
+      setApiKeys(prev => ({
+        ...prev,
+        [exchange]: data
+      }));
+
       toast({
         title: "API ключ сохранен",
-        description: `Ключи для ${newApiKey.exchange.toUpperCase()} успешно добавлены`,
+        description: `Ключ для ${exchange} успешно обновлен`,
       });
-
-      // Сброс формы
-      setNewApiKey({
-        exchange: 'bybit',
-        api_key: '',
-        api_secret: '',
-        passphrase: '',
-        testnet: false,
-        is_active: true
-      });
-
-      loadApiKeys();
     } catch (error: any) {
       toast({
         title: "Ошибка сохранения",
         description: error.message,
-        variant: "destructive",
+        variant: "destructive"
       });
     } finally {
       setLoading(false);
     }
   };
 
-  const deleteApiKey = async (id: string) => {
-    try {
-      setLoading(true);
-      const { error } = await supabase
-.from('api_keys_dev') // DEV таблица
-        .delete()
-        .eq('id', id);
-
-      if (error) throw error;
-
-      toast({
-        title: "API ключ удален",
-        description: "Ключи успешно удалены",
-      });
-
-      loadApiKeys();
-    } catch (error: any) {
-      toast({
-        title: "Ошибка удаления",
-        description: error.message,
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const toggleApiKeyStatus = async (id: string, currentStatus: boolean) => {
-    try {
-      setLoading(true);
-      const { error } = await supabase
-.from('api_keys_dev') // DEV таблица
-        .update({ is_active: !currentStatus })
-        .eq('id', id);
-
-      if (error) throw error;
-
-      toast({
-        title: "Статус обновлен",
-        description: `API ключ ${!currentStatus ? 'активирован' : 'деактивирован'}`,
-      });
-
-      loadApiKeys();
-    } catch (error: any) {
-      toast({
-        title: "Ошибка обновления",
-        description: error.message,
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const toggleSecretVisibility = (keyId: string) => {
+  const toggleSecretVisibility = (exchange: string) => {
     setShowSecrets(prev => ({
       ...prev,
-      [keyId]: !prev[keyId]
+      [exchange]: !prev[exchange]
     }));
   };
 
-  const maskSecret = (secret: string, show: boolean) => {
-    if (show) return secret;
-    return '*'.repeat(Math.min(secret.length, 20));
-  };
-
-  const getExchangeRequirements = (exchange: string) => {
-    const requirements: {[key: string]: string[]} = {
-      bybit: ['API Key', 'API Secret'],
-      binance: ['API Key', 'API Secret'],
-      mexc: ['API Key', 'API Secret'],
-      gate: ['API Key', 'API Secret'],
-      kucoin: ['API Key', 'API Secret', 'Passphrase']
-    };
-    return requirements[exchange] || ['API Key', 'API Secret'];
+  const updateFormData = (exchange: string, field: 'apiKey' | 'apiSecret', value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      [exchange]: {
+        ...prev[exchange],
+        [field]: value
+      }
+    }));
   };
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold">Управление API ключами</h2>
-          <p className="text-muted-foreground">Добавьте и управляйте API ключами для торговых бирж</p>
-        </div>
+      <div className="text-center mb-6">
+        <h2 className="text-2xl font-bold text-gradient-primary mb-2">
+          🔑 Настройка API ключей
+        </h2>
+        <p className="text-gray-400">
+          Добавьте API ключи для торговли на биржах. Все ключи хранятся в зашифрованном виде.
+        </p>
       </div>
 
-      <Alert>
-        <AlertTriangle className="h-4 w-4" />
-        <AlertDescription>
-          <strong>Важно:</strong> API ключи хранятся в зашифрованном виде. Убедитесь, что у ваших ключей есть права на торговлю и чтение баланса.
-        </AlertDescription>
-      </Alert>
+      {EXCHANGES.map(exchange => {
+        const currentKey = apiKeys[exchange.value];
+        const currentForm = formData[exchange.value] || { apiKey: '', apiSecret: '' };
 
-      <Tabs defaultValue="add" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="add">Добавить ключи</TabsTrigger>
-          <TabsTrigger value="manage">Управление ключами</TabsTrigger>
-        </TabsList>
-
-        {/* Add API Keys Tab */}
-        <TabsContent value="add" className="space-y-4">
-          <Card>
+        return (
+          <Card key={exchange.value} className="bg-gray-800 border-gray-700">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Plus className="h-5 w-5" />
-                Добавить новые API ключи
+              <CardTitle className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <Key className="h-5 w-5" />
+                  <span>{exchange.icon} {exchange.label}</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  {currentKey?.is_active && (
+                    <Badge variant="default" className="bg-green-600">Активен</Badge>
+                  )}
+                  <a 
+                    href={exchange.docs} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-xs text-blue-400 hover:text-blue-300"
+                  >
+                    📖 Документация
+                  </a>
+                </div>
               </CardTitle>
               <CardDescription>
-                Добавьте API ключи для торговли на выбранной бирже
+                API ключи для торговли на {exchange.label}. 
+                <span className="text-yellow-400 ml-2">
+                  ⚠️ Включите фьючерсную торговлю в настройках API
+                </span>
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="exchange">Биржа</Label>
-                  <Select 
-                    value={newApiKey.exchange} 
-                    onValueChange={(value) => setNewApiKey(prev => ({ 
-                      ...prev, 
-                      exchange: value,
-                      passphrase: value === 'kucoin' ? prev.passphrase : ''
-                    }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="bybit">Bybit</SelectItem>
-                      <SelectItem value="binance">Binance</SelectItem>
-                      <SelectItem value="mexc">MEXC</SelectItem>
-                      <SelectItem value="gate">Gate.io</SelectItem>
-                      <SelectItem value="kucoin">KuCoin</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Требуется: {getExchangeRequirements(newApiKey.exchange).join(', ')}
-                  </p>
-                </div>
-
-                <div className="flex items-center space-x-2 pt-6">
-                  <input
-                    type="checkbox"
-                    id="testnet"
-                    checked={newApiKey.testnet}
-                    onChange={(e) => setNewApiKey(prev => ({ ...prev, testnet: e.target.checked }))}
-                    className="rounded"
-                  />
-                  <Label htmlFor="testnet" className="text-sm">
-                    Testnet (тестовая сеть)
-                  </Label>
-                </div>
-              </div>
-
               <div>
-                <Label htmlFor="api_key">API Key</Label>
+                <Label htmlFor={`${exchange.value}-key`}>API Key</Label>
                 <Input
-                  id="api_key"
-                  type="text"
-                  value={newApiKey.api_key}
-                  onChange={(e) => setNewApiKey(prev => ({ ...prev, api_key: e.target.value }))}
-                  placeholder="Введите ваш API Key"
+                  id={`${exchange.value}-key`}
+                  value={currentForm.apiKey}
+                  onChange={(e) => updateFormData(exchange.value, 'apiKey', e.target.value)}
+                  placeholder="Введите API ключ"
+                  className="bg-gray-700 border-gray-600 font-mono"
                 />
               </div>
-
+              
               <div>
-                <Label htmlFor="api_secret">API Secret</Label>
-                <Input
-                  id="api_secret"
-                  type="password"
-                  value={newApiKey.api_secret}
-                  onChange={(e) => setNewApiKey(prev => ({ ...prev, api_secret: e.target.value }))}
-                  placeholder="Введите ваш API Secret"
-                />
-              </div>
-
-              {newApiKey.exchange === 'kucoin' && (
-                <div>
-                  <Label htmlFor="passphrase">Passphrase</Label>
+                <Label htmlFor={`${exchange.value}-secret`}>API Secret</Label>
+                <div className="relative">
                   <Input
-                    id="passphrase"
-                    type="password"
-                    value={newApiKey.passphrase}
-                    onChange={(e) => setNewApiKey(prev => ({ ...prev, passphrase: e.target.value }))}
-                    placeholder="Введите ваш Passphrase (только для KuCoin)"
+                    id={`${exchange.value}-secret`}
+                    type={showSecrets[exchange.value] ? 'text' : 'password'}
+                    value={currentForm.apiSecret}
+                    onChange={(e) => updateFormData(exchange.value, 'apiSecret', e.target.value)}
+                    placeholder="Введите секретный ключ"
+                    className="bg-gray-700 border-gray-600 pr-10 font-mono"
                   />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                    onClick={() => toggleSecretVisibility(exchange.value)}
+                  >
+                    {showSecrets[exchange.value] ? (
+                      <EyeOff className="h-4 w-4" />
+                    ) : (
+                      <Eye className="h-4 w-4" />
+                    )}
+                  </Button>
                 </div>
-              )}
+              </div>
 
-              <Button onClick={saveApiKey} disabled={loading} className="w-full">
+              <div className="bg-gray-700 p-3 rounded text-sm">
+                <p className="text-yellow-400 font-semibold mb-1">Важные настройки API:</p>
+                <ul className="text-gray-300 space-y-1 text-xs">
+                  <li>✅ Включите <strong>Фьючерсную торговлю</strong></li>
+                  <li>✅ Разрешите <strong>Чтение</strong> и <strong>Торговлю</strong></li>
+                  <li>❌ НЕ включайте <strong>Вывод средств</strong></li>
+                  <li>🔒 Добавьте IP-адрес сервера в белый список (рекомендуется)</li>
+                </ul>
+              </div>
+
+              <Button
+                onClick={() => saveApiKey(exchange.value)}
+                disabled={loading || !currentForm.apiKey || !currentForm.apiSecret}
+                className="w-full bg-green-600 hover:bg-green-700"
+              >
                 <Save className="h-4 w-4 mr-2" />
-                {loading ? "Сохранение..." : "Сохранить API ключи"}
+                {currentKey ? 'Обновить ключи' : 'Сохранить ключи'}
               </Button>
             </CardContent>
           </Card>
-        </TabsContent>
+        );
+      })}
 
-        {/* Manage API Keys Tab */}
-        <TabsContent value="manage" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Key className="h-5 w-5" />
-                Сохраненные API ключи
-              </CardTitle>
-              <CardDescription>
-                Управляйте существующими API ключами
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {apiKeys.length === 0 ? (
-                <div className="text-center py-8">
-                  <Key className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <p className="text-muted-foreground">Нет сохраненных API ключей</p>
-                  <p className="text-sm text-muted-foreground">Добавьте ключи на вкладке "Добавить ключи"</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {apiKeys.map((apiKey) => (
-                    <div key={apiKey.id} className="border rounded-lg p-4">
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center gap-3">
-                          <Badge variant="outline" className="uppercase">
-                            {apiKey.exchange}
-                          </Badge>
-                          {apiKey.testnet && (
-                            <Badge variant="secondary">Testnet</Badge>
-                          )}
-                          <Badge variant={apiKey.is_active ? "default" : "secondary"}>
-                            {apiKey.is_active ? "Активен" : "Неактивен"}
-                          </Badge>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => toggleApiKeyStatus(apiKey.id!, apiKey.is_active)}
-                            disabled={loading}
-                          >
-                            {apiKey.is_active ? "Деактивировать" : "Активировать"}
-                          </Button>
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            onClick={() => deleteApiKey(apiKey.id!)}
-                            disabled={loading}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                        <div>
-                          <Label className="text-xs text-muted-foreground">API Key</Label>
-                          <div className="flex items-center gap-2">
-                            <code className="bg-muted px-2 py-1 rounded text-xs flex-1">
-                              {maskSecret(apiKey.api_key, showSecrets[apiKey.id!])}
-                            </code>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => toggleSecretVisibility(apiKey.id!)}
-                            >
-                              {showSecrets[apiKey.id!] ? (
-                                <EyeOff className="h-4 w-4" />
-                              ) : (
-                                <Eye className="h-4 w-4" />
-                              )}
-                            </Button>
-                          </div>
-                        </div>
-
-                        <div>
-                          <Label className="text-xs text-muted-foreground">API Secret</Label>
-                          <div className="flex items-center gap-2">
-                            <code className="bg-muted px-2 py-1 rounded text-xs flex-1">
-                              {maskSecret(apiKey.api_secret, showSecrets[apiKey.id!])}
-                            </code>
-                          </div>
-                        </div>
-
-                        {apiKey.passphrase && (
-                          <div>
-                            <Label className="text-xs text-muted-foreground">Passphrase</Label>
-                            <div className="flex items-center gap-2">
-                              <code className="bg-muted px-2 py-1 rounded text-xs flex-1">
-                                {maskSecret(apiKey.passphrase, showSecrets[apiKey.id!])}
-                              </code>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+      <Card className="bg-blue-900/20 border-blue-700">
+        <CardContent className="p-6">
+          <h3 className="font-semibold text-blue-400 mb-3">🛡️ Безопасность</h3>
+          <ul className="text-sm text-gray-300 space-y-2">
+            <li>• Все API ключи хранятся в зашифрованном виде в базе данных</li>
+            <li>• Бот использует только разрешения на чтение и торговлю</li>
+            <li>• Никогда не предоставляйте права на вывод средств</li>
+            <li>• Регулярно проверяйте активность API ключей на биржах</li>
+          </ul>
+        </CardContent>
+      </Card>
     </div>
   );
-};
-
-export default ApiKeysManager;
+}

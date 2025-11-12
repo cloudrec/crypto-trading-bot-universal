@@ -4,16 +4,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
-import { Mail, Lock, User } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import { Mail, Lock, User, Bot } from 'lucide-react';
 
-interface AuthFormProps {
-  onAuthSuccess: () => void;
-}
-
-const AuthForm: React.FC<AuthFormProps> = ({ onAuthSuccess }) => {
-  const { toast } = useToast();
+const AuthForm: React.FC = () => {
+  const { signIn, signUp } = useAuth();
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -21,225 +16,204 @@ const AuthForm: React.FC<AuthFormProps> = ({ onAuthSuccess }) => {
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!email || !password) {
-      toast({
-        title: "Ошибка",
-        description: "Заполните все поля",
-        variant: "destructive",
-      });
-      return;
-    }
+    if (!email || !password) return;
 
-    try {
-      setLoading(true);
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (error) throw error;
-
-      toast({
-        title: "Успешный вход",
-        description: "Добро пожаловать в торговый бот!",
-      });
-
-      onAuthSuccess();
-    } catch (error: any) {
-      toast({
-        title: "Ошибка входа",
-        description: error.message,
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
+    setLoading(true);
+    await signIn(email, password);
+    setLoading(false);
   };
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!email || !password || !confirmPassword) {
-      toast({
-        title: "Ошибка",
-        description: "Заполните все поля",
-        variant: "destructive",
-      });
-      return;
-    }
+    if (!email || !password || !confirmPassword) return;
 
     if (password !== confirmPassword) {
-      toast({
-        title: "Ошибка",
-        description: "Пароли не совпадают",
-        variant: "destructive",
-      });
+      alert('Пароли не совпадают');
       return;
     }
 
     if (password.length < 6) {
-      toast({
-        title: "Ошибка",
-        description: "Пароль должен содержать минимум 6 символов",
-        variant: "destructive",
-      });
+      alert('Пароль должен содержать минимум 6 символов');
       return;
     }
 
-    try {
-      setLoading(true);
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/`,
-        }
-      });
-
-      if (error) throw error;
-
-      toast({
-        title: "Регистрация успешна",
-        description: "Проверьте почту для подтверждения аккаунта",
-      });
-
-      // Если email подтверждение не требуется, сразу входим
-      if (data.user && !data.user.email_confirmed_at) {
-        toast({
-          title: "Подтверждение email",
-          description: "Проверьте почту и перейдите по ссылке для активации аккаунта",
-        });
-      } else if (data.user) {
-        onAuthSuccess();
-      }
-    } catch (error: any) {
-      toast({
-        title: "Ошибка регистрации",
-        description: error.message,
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
+    setLoading(true);
+    await signUp(email, password);
+    setLoading(false);
   };
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <CardTitle className="text-2xl font-bold">Crypto Trading Bot</CardTitle>
-          <CardDescription>
-            Войдите или зарегистрируйтесь для доступа к торговому боту
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Tabs defaultValue="signin" className="space-y-4">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="signin">Вход</TabsTrigger>
-              <TabsTrigger value="signup">Регистрация</TabsTrigger>
+    <div className="min-h-screen bg-gray-900 flex items-center justify-center p-4">
+      <div className="w-full max-w-md">
+        {/* Header */}
+        <div className="text-center mb-8">
+          <div className="flex items-center justify-center space-x-2 mb-4">
+            <Bot className="h-8 w-8 text-blue-400" />
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+              Фандинг Бот
+            </h1>
+          </div>
+          <p className="text-gray-400">
+            Профессиональный торговый бот для фандинг-арбитража
+          </p>
+        </div>
+
+        <Card className="bg-gray-800 border-gray-700">
+          <Tabs defaultValue="signin" className="w-full">
+            <TabsList className="grid w-full grid-cols-2 bg-gray-700">
+              <TabsTrigger value="signin" className="data-[state=active]:bg-gray-600">
+                Вход
+              </TabsTrigger>
+              <TabsTrigger value="signup" className="data-[state=active]:bg-gray-600">
+                Регистрация
+              </TabsTrigger>
             </TabsList>
 
+            {/* Sign In Tab */}
             <TabsContent value="signin">
-              <form onSubmit={handleSignIn} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="signin-email">Email</Label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="signin-email"
-                      type="email"
-                      placeholder="your@email.com"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="pl-10"
-                      required
-                    />
+              <CardHeader>
+                <CardTitle className="text-white">Добро пожаловать!</CardTitle>
+                <CardDescription>
+                  Войдите в свой аккаунт для доступа к торговому боту
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handleSignIn} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="signin-email" className="text-gray-300">
+                      Email
+                    </Label>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                      <Input
+                        id="signin-email"
+                        type="email"
+                        placeholder="your@email.com"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        className="pl-10 bg-gray-700 border-gray-600 text-white"
+                        required
+                      />
+                    </div>
                   </div>
-                </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="signin-password">Пароль</Label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="signin-password"
-                      type="password"
-                      placeholder="••••••••"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className="pl-10"
-                      required
-                    />
+                  <div className="space-y-2">
+                    <Label htmlFor="signin-password" className="text-gray-300">
+                      Пароль
+                    </Label>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                      <Input
+                        id="signin-password"
+                        type="password"
+                        placeholder="••••••••"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        className="pl-10 bg-gray-700 border-gray-600 text-white"
+                        required
+                      />
+                    </div>
                   </div>
-                </div>
 
-                <Button type="submit" className="w-full" disabled={loading}>
-                  {loading ? "Вход..." : "Войти"}
-                </Button>
-              </form>
+                  <Button
+                    type="submit"
+                    className="w-full bg-blue-600 hover:bg-blue-700"
+                    disabled={loading}
+                  >
+                    {loading ? 'Вход...' : 'Войти'}
+                  </Button>
+                </form>
+              </CardContent>
             </TabsContent>
 
+            {/* Sign Up Tab */}
             <TabsContent value="signup">
-              <form onSubmit={handleSignUp} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="signup-email">Email</Label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="signup-email"
-                      type="email"
-                      placeholder="your@email.com"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="pl-10"
-                      required
-                    />
+              <CardHeader>
+                <CardTitle className="text-white">Создать аккаунт</CardTitle>
+                <CardDescription>
+                  Зарегистрируйтесь для начала работы с торговым ботом
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <form onSubmit={handleSignUp} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-email" className="text-gray-300">
+                      Email
+                    </Label>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                      <Input
+                        id="signup-email"
+                        type="email"
+                        placeholder="your@email.com"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        className="pl-10 bg-gray-700 border-gray-600 text-white"
+                        required
+                      />
+                    </div>
                   </div>
-                </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="signup-password">Пароль</Label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="signup-password"
-                      type="password"
-                      placeholder="••••••••"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className="pl-10"
-                      required
-                      minLength={6}
-                    />
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-password" className="text-gray-300">
+                      Пароль
+                    </Label>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                      <Input
+                        id="signup-password"
+                        type="password"
+                        placeholder="••••••••"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        className="pl-10 bg-gray-700 border-gray-600 text-white"
+                        required
+                        minLength={6}
+                      />
+                    </div>
+                    <p className="text-xs text-gray-400">Минимум 6 символов</p>
                   </div>
-                </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="confirm-password">Подтвердите пароль</Label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="confirm-password"
-                      type="password"
-                      placeholder="••••••••"
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      className="pl-10"
-                      required
-                      minLength={6}
-                    />
+                  <div className="space-y-2">
+                    <Label htmlFor="confirm-password" className="text-gray-300">
+                      Подтвердите пароль
+                    </Label>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                      <Input
+                        id="confirm-password"
+                        type="password"
+                        placeholder="••••••••"
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        className="pl-10 bg-gray-700 border-gray-600 text-white"
+                        required
+                      />
+                    </div>
                   </div>
-                </div>
 
-                <Button type="submit" className="w-full" disabled={loading}>
-                  {loading ? "Регистрация..." : "Зарегистрироваться"}
-                </Button>
-              </form>
+                  <Button
+                    type="submit"
+                    className="w-full bg-green-600 hover:bg-green-700"
+                    disabled={loading}
+                  >
+                    {loading ? 'Регистрация...' : 'Создать аккаунт'}
+                  </Button>
+                </form>
+              </CardContent>
             </TabsContent>
           </Tabs>
-        </CardContent>
-      </Card>
+        </Card>
+
+        {/* Footer */}
+        <div className="text-center mt-6 text-sm text-gray-400">
+          <p>🔒 Ваши данные защищены шифрованием</p>
+          <p className="mt-2">
+            Используя сервис, вы соглашаетесь с{' '}
+            <span className="text-blue-400">условиями использования</span>
+          </p>
+        </div>
+      </div>
     </div>
   );
 };

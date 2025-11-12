@@ -1,0 +1,9 @@
+          <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-7' : 'grid-cols-6'} bg-gray-800`}>
+            <TabsTrigger value="trading">Торговля</TabsTrigger>
+            <TabsTrigger value="positions">Позиции</TabsTrigger>
+            <TabsTrigger value="config">Конфигурация</TabsTrigger>
+            <TabsTrigger value="api-keys">API Ключи</TabsTrigger>
+            <TabsTrigger value="logs">Логи</TabsTrigger>
+            <TabsTrigger value="subscription">Подписка</TabsTrigger>
+            {isAdmin && <TabsTrigger value="admin">Админ</TabsTrigger>}
+          </TabsList>

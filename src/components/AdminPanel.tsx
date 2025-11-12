@@ -1,676 +1,515 @@
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { toast } from '@/hooks/use-toast';
 import { 
-  Shield, 
   Users, 
-  DollarSign, 
-  Plus, 
-  Edit, 
-  UserPlus,
-  Settings,
+  CreditCard, 
+  Settings, 
+  TrendingUp, 
+  DollarSign,
+  UserCheck,
+  UserX,
   Crown,
-  CheckCircle,
-  XCircle
+  Calendar,
+  Activity,
+  AlertCircle
 } from 'lucide-react';
 
-interface AdminPanelProps {
-  user: any;
-  isAdmin: boolean;
+interface User {
+  id: string;
+  email: string;
+  created_at: string;
+  user_profiles: {
+    username: string;
+    subscription_plan: string;
+    subscription_status: string;
+    subscription_expires_at: string;
+    is_admin: boolean;
+    max_exchanges: number;
+    max_daily_trades: number;
+  };
 }
 
-interface PricingPlan {
+interface Payment {
   id: string;
-  plan_id: string;
-  name: string;
-  price: number;
+  amount_usd: number;
   currency: string;
+  amount_crypto: number;
+  status: string;
+  created_at: string;
+  paid_at: string;
+  user_id: string;
+  subscription_plans: {
+    name: string;
+  };
+}
+
+interface Plan {
+  id: string;
+  name: string;
+  description: string;
+  price_usd: number;
+  price_crypto: any;
   duration_days: number;
+  max_exchanges: number;
+  max_daily_trades: number;
   features: string[];
   is_active: boolean;
 }
 
-interface UserSubscription {
-  id: string;
-  user_id: string;
-  user_email: string;
-  email: string;
-  status: string;
-  activated_at: string;
-  expires_at: string;
-  order_number: string;
-  is_active: boolean;
-  trading_settings?: any;
-  api_keys_count: number;
-  exchanges: string[];
-}
-
-const AdminPanel: React.FC<AdminPanelProps> = ({ user, isAdmin }) => {
-  const { toast } = useToast();
+export default function AdminPanel() {
+  const { user, isAdmin } = useAuth();
+  const [users, setUsers] = useState<User[]>([]);
+  const [payments, setPayments] = useState<Payment[]>([]);
+  const [plans, setPlans] = useState<Plan[]>([]);
   const [loading, setLoading] = useState(false);
-  const [pricingPlans, setPricingPlans] = useState<PricingPlan[]>([]);
-  const [subscriptions, setSubscriptions] = useState<UserSubscription[]>([]);
-  const [userStats, setUserStats] = useState<any>(null);
-  const [managingUsers, setManagingUsers] = useState(false);
-  
-  // Состояния для создания пользователя
-  const [newUserEmail, setNewUserEmail] = useState('');
-  const [selectedPlan, setSelectedPlan] = useState('');
-  const [customDuration, setCustomDuration] = useState('');
-  
-  // Состояния для редактирования планов
-  const [editingPlan, setEditingPlan] = useState<string | null>(null);
-  const [editPlanData, setEditPlanData] = useState<Partial<PricingPlan>>({});
+  const [stats, setStats] = useState({
+    totalUsers: 0,
+    activeSubscriptions: 0,
+    totalRevenue: 0,
+    pendingPayments: 0
+  });
 
   useEffect(() => {
     if (isAdmin) {
-      loadPricingPlans();
-      loadSubscriptions();
+      loadAdminData();
     }
   }, [isAdmin]);
 
-  const loadPricingPlans = async () => {
+  const loadAdminData = async () => {
+    setLoading(true);
     try {
-      const { data, error } = await supabase
-.from('pricing_plans_dev') // DEV таблица
-        .select('*')
-        .order('price', { ascending: true });
-
-      if (error) throw error;
-      setPricingPlans(data || []);
-    } catch (error: any) {
-      console.error('Error loading pricing plans:', error);
-      toast({
-        title: "Ошибка",
-        description: "Не удалось загрузить тарифные планы",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const loadSubscriptions = async () => {
-    try {
-      const { data, error } = await supabase
-.from('user_subscriptions_dev') // DEV таблица
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(20);
-
-      if (error) throw error;
-      setSubscriptions(data || []);
-    } catch (error: any) {
-      console.error('Error loading subscriptions:', error);
-      toast({
-        title: "Ошибка",
-        description: "Не удалось загрузить подписки",
-        variant: "destructive",
-      });
-    }
-  };
-
-  // 👥 ЗАГРУЗКА ПОЛЬЗОВАТЕЛЕЙ ДЛЯ УПРАВЛЕНИЯ
-  const loadUsersForManagement = async () => {
-    try {
-      setManagingUsers(true);
-      
-      const { data, error } = await supabase.functions.invoke('admin_user_management_fixed_2025_11_08_22_40', {
-        body: {
-          action: 'get_all_users',
-          admin_user_id: user.id
-        }
-      });
-
-      if (error) throw error;
-
-      console.log('👥 USERS LOADED:', data);
-      setSubscriptions(data.data.users || []);
-      setUserStats(data.data);
-      
-    } catch (error: any) {
-      console.error('Error loading users:', error);
-      toast({
-        title: "Ошибка",
-        description: "Не удалось загрузить пользователей",
-        variant: "destructive",
-      });
-    } finally {
-      setManagingUsers(false);
-    }
-  };
-
-  // 🔄 АКТИВАЦИЯ/ДЕАКТИВАЦИЯ ПОЛЬЗОВАТЕЛЯ
-  const toggleUserActivation = async (userEmail: string, currentStatus: boolean) => {
-    try {
-      setLoading(true);
-      
-      const newStatus = !currentStatus;
-      
-      const { data, error } = await supabase.functions.invoke('admin_user_management_fixed_2025_11_08_22_40', {
-        body: {
-          action: 'toggle_user_activation',
-          admin_user_id: user.id,
-          target_user_email: userEmail,
-          is_active: newStatus
-        }
-      });
-
-      if (error) throw error;
-
-      console.log('🔄 USER ACTIVATION TOGGLED:', data);
-      
-      toast({
-        title: "Статус обновлен",
-        description: data.data.message,
-        variant: "default",
-      });
-      
-      // Перезагружаем список пользователей
-      await loadUsersForManagement();
-      
-    } catch (error: any) {
-      console.error('Error toggling user activation:', error);
-      toast({
-        title: "Ошибка",
-        description: "Не удалось изменить статус пользователя",
-        variant: "destructive",
-      });
+      await Promise.all([
+        loadUsers(),
+        loadPayments(),
+        loadPlans(),
+        loadStats()
+      ]);
+    } catch (error) {
+      console.error('Error loading admin data:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const createUserWithSubscription = async () => {
-    if (!newUserEmail || !selectedPlan) {
-      toast({
-        title: "Ошибка",
-        description: "Заполните все обязательные поля",
-        variant: "destructive",
-      });
-      return;
-    }
+  const loadUsers = async () => {
+    const { data, error } = await supabase
+      .from('user_profiles')
+      .select(`
+        user_id,
+        username,
+        subscription_plan,
+        subscription_status,
+        subscription_expires_at,
+        is_admin,
+        max_exchanges,
+        max_daily_trades,
+        auth.users!inner(id, email, created_at)
+      `)
+      .order('created_at', { ascending: false });
 
-    try {
-      setLoading(true);
-      
-      const selectedPlanData = pricingPlans.find(p => p.plan_id === selectedPlan);
-      if (!selectedPlanData) {
-        throw new Error('План не найден');
-      }
-
-      const duration = customDuration ? parseInt(customDuration) : selectedPlanData.duration_days;
-
-      const { data, error } = await supabase.rpc('create_user_subscription', {
-        p_email: newUserEmail,
-        p_plan_id: selectedPlan,
-        p_duration_days: duration
-      });
-
-      if (error) throw error;
-
-      toast({
-        title: "Пользователь создан!",
-        description: `Пользователь ${newUserEmail} создан с подпиской на ${duration} дней`,
-      });
-
-      // Очищаем форму
-      setNewUserEmail('');
-      setSelectedPlan('');
-      setCustomDuration('');
-      
-      // Перезагружаем подписки
-      loadSubscriptions();
-
-    } catch (error: any) {
-      console.error('Error creating user:', error);
-      toast({
-        title: "Ошибка создания пользователя",
-        description: error.message || "Неизвестная ошибка",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
+    if (error) throw error;
+    setUsers(data || []);
   };
 
-  const updatePricingPlan = async (planId: string) => {
+  const loadPayments = async () => {
+    const { data, error } = await supabase
+      .from('payments')
+      .select(`
+        *,
+        subscription_plans(name)
+      `)
+      .order('created_at', { ascending: false })
+      .limit(50);
+
+    if (error) throw error;
+    setPayments(data || []);
+  };
+
+  const loadPlans = async () => {
+    const { data, error } = await supabase
+      .from('subscription_plans')
+      .select('*')
+      .order('price_usd', { ascending: true });
+
+    if (error) throw error;
+    setPlans(data || []);
+  };
+
+  const loadStats = async () => {
+    // Get total users
+    const { count: totalUsers } = await supabase
+      .from('user_profiles')
+      .select('*', { count: 'exact', head: true });
+
+    // Get active subscriptions
+    const { count: activeSubscriptions } = await supabase
+      .from('user_profiles')
+      .select('*', { count: 'exact', head: true })
+      .eq('subscription_status', 'active');
+
+    // Get total revenue
+    const { data: revenueData } = await supabase
+      .from('payments')
+      .select('amount_usd')
+      .eq('status', 'completed');
+
+    const totalRevenue = revenueData?.reduce((sum, payment) => sum + payment.amount_usd, 0) || 0;
+
+    // Get pending payments
+    const { count: pendingPayments } = await supabase
+      .from('payments')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'pending');
+
+    setStats({
+      totalUsers: totalUsers || 0,
+      activeSubscriptions: activeSubscriptions || 0,
+      totalRevenue,
+      pendingPayments: pendingPayments || 0
+    });
+  };
+
+  const updateUserSubscription = async (userId: string, planName: string, days: number) => {
     try {
-      setLoading(true);
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + days);
 
       const { error } = await supabase
-.from('pricing_plans_dev') // DEV таблица
-        .update(editPlanData)
-        .eq('plan_id', planId);
+        .from('user_profiles')
+        .update({
+          subscription_plan: planName,
+          subscription_status: 'active',
+          subscription_expires_at: expiresAt.toISOString()
+        })
+        .eq('user_id', userId);
 
       if (error) throw error;
 
       toast({
-        title: "План обновлен!",
+        title: "Подписка обновлена",
+        description: `Пользователю назначен план "${planName}" на ${days} дней`,
+      });
+
+      loadUsers();
+    } catch (error: any) {
+      toast({
+        title: "Ошибка",
+        description: error.message,
+        variant: "destructive"
+      });
+    }
+  };
+
+  const toggleUserAdmin = async (userId: string, isCurrentlyAdmin: boolean) => {
+    try {
+      const { error } = await supabase
+        .from('user_profiles')
+        .update({ is_admin: !isCurrentlyAdmin })
+        .eq('user_id', userId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Права обновлены",
+        description: `Пользователь ${!isCurrentlyAdmin ? 'получил' : 'лишен'} прав администратора`,
+      });
+
+      loadUsers();
+    } catch (error: any) {
+      toast({
+        title: "Ошибка",
+        description: error.message,
+        variant: "destructive"
+      });
+    }
+  };
+
+  const updatePlan = async (planId: string, updates: Partial<Plan>) => {
+    try {
+      const { error } = await supabase
+        .from('subscription_plans')
+        .update(updates)
+        .eq('id', planId);
+
+      if (error) throw error;
+
+      toast({
+        title: "План обновлен",
         description: "Тарифный план успешно обновлен",
       });
 
-      setEditingPlan(null);
-      setEditPlanData({});
-      loadPricingPlans();
-
+      loadPlans();
     } catch (error: any) {
-      console.error('Error updating plan:', error);
       toast({
-        title: "Ошибка обновления",
-        description: error.message || "Не удалось обновить план",
-        variant: "destructive",
+        title: "Ошибка",
+        description: error.message,
+        variant: "destructive"
       });
-    } finally {
-      setLoading(false);
     }
   };
 
   if (!isAdmin) {
     return (
-      <Alert>
-        <Shield className="h-4 w-4" />
-        <AlertDescription>
-          У вас нет прав администратора
-        </AlertDescription>
-      </Alert>
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+        <Card className="bg-gray-800 border-gray-700">
+          <CardContent className="p-6 text-center">
+            <AlertCircle className="h-12 w-12 text-red-400 mx-auto mb-4" />
+            <h2 className="text-xl font-semibold text-white mb-2">Доступ запрещен</h2>
+            <p className="text-gray-400">У вас нет прав администратора</p>
+          </CardContent>
+        </Card>
+      </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <Alert>
-        <Crown className="h-4 w-4" />
-        <AlertDescription>
-          🎉 Добро пожаловать в админ-панель, {user?.email}!
-        </AlertDescription>
-      </Alert>
+    <div className="min-h-screen bg-gray-900 text-white p-6">
+      <div className="container mx-auto">
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent mb-2">
+            👑 Админ панель
+          </h1>
+          <p className="text-gray-400">Управление пользователями, тарифами и платежами</p>
+        </div>
 
-      <Tabs defaultValue="users" className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="users">
-            <Users className="h-4 w-4 mr-2" />
-            Пользователи
-          </TabsTrigger>
-          <TabsTrigger value="management">
-            <Shield className="h-4 w-4 mr-2" />
-            Управление
-          </TabsTrigger>
-          <TabsTrigger value="plans">
-            <DollarSign className="h-4 w-4 mr-2" />
-            Тарифы
-          </TabsTrigger>
-          <TabsTrigger value="settings">
-            <Settings className="h-4 w-4 mr-2" />
-            Настройки
-          </TabsTrigger>
-        </TabsList>
-
-        {/* Вкладка пользователей */}
-        <TabsContent value="users" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <UserPlus className="h-5 w-5" />
-                Создать пользователя с подпиской
-              </CardTitle>
-              <CardDescription>
-                Создайте нового пользователя и сразу выдайте ему подписку
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+          <Card className="bg-gray-800 border-gray-700">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
                 <div>
-                  <Label htmlFor="userEmail">Email пользователя *</Label>
-                  <Input
-                    id="userEmail"
-                    type="email"
-                    placeholder="user@example.com"
-                    value={newUserEmail}
-                    onChange={(e) => setNewUserEmail(e.target.value)}
-                  />
+                  <p className="text-sm text-gray-400">Всего пользователей</p>
+                  <p className="text-2xl font-bold">{stats.totalUsers}</p>
                 </div>
-                
-                <div>
-                  <Label htmlFor="planSelect">Тарифный план *</Label>
-                  <Select value={selectedPlan} onValueChange={setSelectedPlan}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Выберите план" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {pricingPlans.map((plan) => (
-                        <SelectItem key={plan.plan_id} value={plan.plan_id}>
-                          {plan.name} - ${plan.price} ({plan.duration_days} дней)
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                <Users className="h-8 w-8 text-blue-400" />
               </div>
-
-              <div>
-                <Label htmlFor="customDuration">Кастомная длительность (дни)</Label>
-                <Input
-                  id="customDuration"
-                  type="number"
-                  placeholder="Оставьте пустым для стандартной длительности"
-                  value={customDuration}
-                  onChange={(e) => setCustomDuration(e.target.value)}
-                />
-              </div>
-
-              <Button 
-                onClick={createUserWithSubscription} 
-                disabled={loading || !newUserEmail || !selectedPlan}
-                className="w-full"
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Создать пользователя
-              </Button>
             </CardContent>
           </Card>
 
-          {/* Список подписок */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Активные подписки</CardTitle>
-              <CardDescription>
-                Последние 20 подписок пользователей
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {subscriptions.length === 0 ? (
-                  <p className="text-muted-foreground text-center py-4">
-                    Подписки не найдены
-                  </p>
-                ) : (
-                  subscriptions.map((sub) => (
-                    <div key={sub.id} className="flex items-center justify-between p-3 border rounded">
-                      <div>
-                        <p className="font-medium">{sub.email}</p>
-                        <p className="text-sm text-muted-foreground">
-                          Заказ: {sub.order_number}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <Badge variant={sub.status === 'active' ? 'default' : 'secondary'}>
-                          {sub.status === 'active' ? (
-                            <CheckCircle className="h-3 w-3 mr-1" />
-                          ) : (
-                            <XCircle className="h-3 w-3 mr-1" />
+          <Card className="bg-gray-800 border-gray-700">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-400">Активных подписок</p>
+                  <p className="text-2xl font-bold text-green-400">{stats.activeSubscriptions}</p>
+                </div>
+                <UserCheck className="h-8 w-8 text-green-400" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-gray-800 border-gray-700">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-400">Общий доход</p>
+                  <p className="text-2xl font-bold text-green-400">${stats.totalRevenue.toFixed(2)}</p>
+                </div>
+                <DollarSign className="h-8 w-8 text-green-400" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-gray-800 border-gray-700">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-400">Ожидающих оплаты</p>
+                  <p className="text-2xl font-bold text-yellow-400">{stats.pendingPayments}</p>
+                </div>
+                <CreditCard className="h-8 w-8 text-yellow-400" />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <Tabs defaultValue="users" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-3 bg-gray-800">
+            <TabsTrigger value="users">Пользователи</TabsTrigger>
+            <TabsTrigger value="payments">Платежи</TabsTrigger>
+            <TabsTrigger value="plans">Тарифы</TabsTrigger>
+          </TabsList>
+
+          {/* Users Tab */}
+          <TabsContent value="users">
+            <Card className="bg-gray-800 border-gray-700">
+              <CardHeader>
+                <CardTitle>Управление пользователями</CardTitle>
+                <CardDescription>Просмотр и управление пользователями системы</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {users.map(user => (
+                    <div key={user.id} className="flex items-center justify-between p-4 bg-gray-700 rounded-lg">
+                      <div className="flex items-center space-x-4">
+                        <div>
+                          <p className="font-semibold">{user.email}</p>
+                          <p className="text-sm text-gray-400">
+                            {user.user_profiles?.username || 'Без имени'}
+                          </p>
+                        </div>
+                        <div className="flex space-x-2">
+                          <Badge variant={user.user_profiles?.subscription_status === 'active' ? 'default' : 'secondary'}>
+                            {user.user_profiles?.subscription_plan || 'free'}
+                          </Badge>
+                          {user.user_profiles?.is_admin && (
+                            <Badge variant="destructive">
+                              <Crown className="h-3 w-3 mr-1" />
+                              Админ
+                            </Badge>
                           )}
-                          {sub.status}
-                        </Badge>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          До: {new Date(sub.expires_at).toLocaleDateString('ru-RU')}
-                        </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Select onValueChange={(value) => {
+                          const [plan, days] = value.split(':');
+                          updateUserSubscription(user.id, plan, parseInt(days));
+                        }}>
+                          <SelectTrigger className="w-40 bg-gray-600">
+                            <SelectValue placeholder="Назначить план" />
+                          </SelectTrigger>
+                          <SelectContent className="bg-gray-700">
+                            <SelectItem value="Базовый:30">Базовый (30д)</SelectItem>
+                            <SelectItem value="Профессиональный:30">Про (30д)</SelectItem>
+                            <SelectItem value="Премиум:30">Премиум (30д)</SelectItem>
+                            <SelectItem value="free:0">Отменить</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <Button
+                          variant={user.user_profiles?.is_admin ? "destructive" : "default"}
+                          size="sm"
+                          onClick={() => toggleUserAdmin(user.id, user.user_profiles?.is_admin)}
+                        >
+                          {user.user_profiles?.is_admin ? <UserX className="h-4 w-4" /> : <UserCheck className="h-4 w-4" />}
+                        </Button>
                       </div>
                     </div>
-                  ))
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* 👥 Вкладка управления пользователями */}
-        <TabsContent value="management" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Shield className="h-5 w-5" />
-                Управление пользователями
-              </CardTitle>
-              <CardDescription>
-                Активация и деактивация доступа к торговле
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center gap-4">
-                <Button 
-                  onClick={loadUsersForManagement}
-                  disabled={managingUsers}
-                  className="bg-blue-600 hover:bg-blue-700"
-                >
-                  <Users className="h-4 w-4 mr-2" />
-                  {managingUsers ? 'Загрузка...' : 'Загрузить пользователей'}
-                </Button>
-                
-                {userStats && (
-                  <div className="flex gap-4 text-sm">
-                    <Badge variant="outline" className="bg-green-50">
-                      ✅ Активных: {userStats.active_users}
-                    </Badge>
-                    <Badge variant="outline" className="bg-red-50">
-                      ❌ Неактивных: {userStats.inactive_users}
-                    </Badge>
-                    <Badge variant="outline" className="bg-gray-50">
-                      📊 Всего: {userStats.total_users}
-                    </Badge>
-                  </div>
-                )}
-              </div>
-
-              {/* Список пользователей */}
-              {subscriptions.length > 0 && (
-                <div className="space-y-4">
-                  <h3 className="text-lg font-semibold">Список пользователей:</h3>
-                  
-                  <div className="space-y-3">
-                    {subscriptions.map((subscription: UserSubscription) => {
-                      const isExpired = new Date(subscription.expires_at) <= new Date();
-                      const isManuallyDeactivated = subscription.is_active === false;
-                      const canTrade = !isExpired && !isManuallyDeactivated;
-                      
-                      return (
-                        <div key={subscription.id} className="border rounded-lg p-4 space-y-3">
-                          <div className="flex items-center justify-between">
-                            <div className="space-y-1">
-                              <div className="flex items-center gap-2">
-                                <span className="font-medium">{subscription.user_email}</span>
-                                
-                                {/* Статус подписки */}
-                                {canTrade ? (
-                                  <Badge className="bg-green-100 text-green-800">
-                                    <CheckCircle className="h-3 w-3 mr-1" />
-                                    АКТИВНА
-                                  </Badge>
-                                ) : isManuallyDeactivated ? (
-                                  <Badge className="bg-red-100 text-red-800">
-                                    <XCircle className="h-3 w-3 mr-1" />
-                                    ДЕАКТИВИРОВАН
-                                  </Badge>
-                                ) : (
-                                  <Badge className="bg-orange-100 text-orange-800">
-                                    <XCircle className="h-3 w-3 mr-1" />
-                                    ПОДПИСКА ИСТЕКЛА
-                                  </Badge>
-                                )}
-                                
-                                {/* Количество API ключей */}
-                                <Badge variant="outline">
-                                  🔑 {subscription.api_keys_count || 0} API
-                                </Badge>
-                              </div>
-                              
-                              <div className="text-sm text-gray-600 space-y-1">
-                                <div>Подписка до: {new Date(subscription.expires_at).toLocaleDateString('ru-RU')}</div>
-                                {subscription.trading_settings && (
-                                  <div>Биржа: {subscription.trading_settings.exchange} | Пара: {subscription.trading_settings.base_asset}/{subscription.trading_settings.quote_asset}</div>
-                                )}
-                                {subscription.exchanges && subscription.exchanges.length > 0 && (
-                                  <div>Настроенные биржи: {subscription.exchanges.join(', ')}</div>
-                                )}
-                              </div>
-                            </div>
-                            
-                            {/* Кнопка активации/деактивации */}
-                            <div className="flex items-center gap-2">
-                              <Button
-                                onClick={() => toggleUserActivation(subscription.user_email, subscription.is_active !== false)}
-                                disabled={loading}
-                                variant={subscription.is_active === false ? "default" : "destructive"}
-                                size="sm"
-                              >
-                                {subscription.is_active === false ? (
-                                  <>
-                                    <CheckCircle className="h-4 w-4 mr-1" />
-                                    Активировать
-                                  </>
-                                ) : (
-                                  <>
-                                    <XCircle className="h-4 w-4 mr-1" />
-                                    Деактивировать
-                                  </>
-                                )}
-                              </Button>
-                            </div>
-                          </div>
-                          
-                          {/* Предупреждение о деактивации */}
-                          {subscription.is_active === false && (
-                            <Alert>
-                              <XCircle className="h-4 w-4" />
-                              <AlertDescription>
-                                <strong>Пользователь деактивирован администратором.</strong><br/>
-                                Пользователь не может пользоваться торговым ботом до активации.
-                              </AlertDescription>
-                            </Alert>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
+                  ))}
                 </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
+              </CardContent>
+            </Card>
+          </TabsContent>
 
-        {/* Вкладка тарифов */}
-        <TabsContent value="plans" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Управление тарифными планами</CardTitle>
-              <CardDescription>
-                Редактируйте цены, названия и функции планов
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {pricingPlans.map((plan) => (
-                  <div key={plan.plan_id} className="border rounded p-4">
-                    {editingPlan === plan.plan_id ? (
-                      <div className="space-y-3">
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                          <div>
-                            <Label>Название</Label>
-                            <Input
-                              value={editPlanData.name || plan.name}
-                              onChange={(e) => setEditPlanData({...editPlanData, name: e.target.value})}
-                            />
-                          </div>
-                          <div>
-                            <Label>Цена ($)</Label>
-                            <Input
-                              type="number"
-                              value={editPlanData.price || plan.price}
-                              onChange={(e) => setEditPlanData({...editPlanData, price: parseFloat(e.target.value)})}
-                            />
-                          </div>
-                          <div>
-                            <Label>Длительность (дни)</Label>
-                            <Input
-                              type="number"
-                              value={editPlanData.duration_days || plan.duration_days}
-                              onChange={(e) => setEditPlanData({...editPlanData, duration_days: parseInt(e.target.value)})}
-                            />
-                          </div>
-                        </div>
-                        <div className="flex gap-2">
-                          <Button onClick={() => updatePricingPlan(plan.plan_id)} disabled={loading}>
-                            Сохранить
-                          </Button>
-                          <Button variant="outline" onClick={() => setEditingPlan(null)}>
-                            Отмена
-                          </Button>
-                        </div>
+          {/* Payments Tab */}
+          <TabsContent value="payments">
+            <Card className="bg-gray-800 border-gray-700">
+              <CardHeader>
+                <CardTitle>История платежей</CardTitle>
+                <CardDescription>Все платежи и транзакции в системе</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {payments.map(payment => (
+                    <div key={payment.id} className="flex items-center justify-between p-4 bg-gray-700 rounded-lg">
+                      <div>
+                        <p className="font-semibold">
+                          ${payment.amount_usd} ({payment.amount_crypto} {payment.currency})
+                        </p>
+                        <p className="text-sm text-gray-400">
+                          {payment.subscription_plans?.name} • {new Date(payment.created_at).toLocaleDateString('ru-RU')}
+                        </p>
                       </div>
-                    ) : (
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <h3 className="font-semibold">{plan.name}</h3>
-                          <p className="text-sm text-muted-foreground">
-                            ${plan.price} за {plan.duration_days} дней
-                          </p>
-                          <div className="flex gap-1 mt-1">
-                            <Badge variant={plan.is_active ? 'default' : 'secondary'}>
-                              {plan.is_active ? 'Активен' : 'Неактивен'}
-                            </Badge>
+                      <Badge variant={
+                        payment.status === 'completed' ? 'default' :
+                        payment.status === 'pending' ? 'secondary' : 'destructive'
+                      }>
+                        {payment.status === 'completed' ? 'Оплачено' :
+                         payment.status === 'pending' ? 'Ожидает' : 'Отклонено'}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Plans Tab */}
+          <TabsContent value="plans">
+            <Card className="bg-gray-800 border-gray-700">
+              <CardHeader>
+                <CardTitle>Управление тарифами</CardTitle>
+                <CardDescription>Настройка тарифных планов и цен</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {plans.map(plan => (
+                    <Card key={plan.id} className="bg-gray-700 border-gray-600">
+                      <CardHeader>
+                        <CardTitle className="flex items-center justify-between">
+                          {plan.name}
+                          <Badge variant={plan.is_active ? 'default' : 'secondary'}>
+                            {plan.is_active ? 'Активен' : 'Отключен'}
+                          </Badge>
+                        </CardTitle>
+                        <CardDescription>{plan.description}</CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <Label>Цена USD</Label>
+                            <Input
+                              type="number"
+                              value={plan.price_usd}
+                              onChange={(e) => updatePlan(plan.id, { price_usd: parseFloat(e.target.value) })}
+                              className="bg-gray-600"
+                            />
+                          </div>
+                          <div>
+                            <Label>Дней</Label>
+                            <Input
+                              type="number"
+                              value={plan.duration_days}
+                              onChange={(e) => updatePlan(plan.id, { duration_days: parseInt(e.target.value) })}
+                              className="bg-gray-600"
+                            />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <Label>Макс. бирж</Label>
+                            <Input
+                              type="number"
+                              value={plan.max_exchanges}
+                              onChange={(e) => updatePlan(plan.id, { max_exchanges: parseInt(e.target.value) })}
+                              className="bg-gray-600"
+                            />
+                          </div>
+                          <div>
+                            <Label>Сделок в день</Label>
+                            <Input
+                              type="number"
+                              value={plan.max_daily_trades}
+                              onChange={(e) => updatePlan(plan.id, { max_daily_trades: parseInt(e.target.value) })}
+                              className="bg-gray-600"
+                            />
                           </div>
                         </div>
                         <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            setEditingPlan(plan.plan_id);
-                            setEditPlanData(plan);
-                          }}
+                          variant={plan.is_active ? "destructive" : "default"}
+                          onClick={() => updatePlan(plan.id, { is_active: !plan.is_active })}
+                          className="w-full"
                         >
-                          <Edit className="h-4 w-4 mr-1" />
-                          Редактировать
+                          {plan.is_active ? 'Отключить' : 'Активировать'}
                         </Button>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Вкладка настроек */}
-        <TabsContent value="settings" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Системные настройки</CardTitle>
-              <CardDescription>
-                Конфигурация платежной системы и API
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <Alert>
-                <Settings className="h-4 w-4" />
-                <AlertDescription>
-                  <strong>Настройка Plisio API:</strong><br />
-                  1. Получите API ключ на https://plisio.net/<br />
-                  2. Добавьте PLISIO_API_KEY в Supabase Secrets<br />
-                  3. Настройте webhook URL для уведомлений о платежах
-                </AlertDescription>
-              </Alert>
-              
-              <div className="p-4 bg-muted rounded">
-                <h4 className="font-medium mb-2">Текущие настройки:</h4>
-                <ul className="text-sm space-y-1">
-                  <li>• Домен: https://fundbot.win</li>
-                  <li>• Платежная система: Plisio (криптовалюты)</li>
-                  <li>• База данных: Supabase</li>
-                  <li>• Админ: {user?.email}</li>
-                </ul>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+      </div>
     </div>
   );
-};
-
-export default AdminPanel;
+}
