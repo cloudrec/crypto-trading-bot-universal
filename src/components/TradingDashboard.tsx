@@ -14,6 +14,7 @@ import AdminPanel from '@/components/AdminPanel';
 import ArbitrageScanner from "@/components/ArbitrageScanner";
 import TriangularArbitrage from "@/components/TriangularArbitrage";
 import FundingInfo from "@/components/FundingInfo";
+import FundingBot from "@/components/FundingBot";
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -304,6 +305,7 @@ export default function TradingDashboard() {
             <TabsTrigger value="subscription">Подписка</TabsTrigger>
             <TabsTrigger value="arbitrage">🔄 Арбитраж</TabsTrigger>
             <TabsTrigger value="triangular">🔺 Треугольный</TabsTrigger>
+            <TabsTrigger value="funding">🤖 Фандинг-Бот</TabsTrigger>
             {isAdmin && <TabsTrigger value="admin">Админ</TabsTrigger>}
           </TabsList>
 
@@ -436,8 +438,11 @@ n          {/* Subscription Tab */}
 
           {/* Triangular Arbitrage Tab */}
           <TabsContent value="triangular">
+{/* Funding Bot Tab */}          <TabsContent value="funding">            <FundingBot />          </TabsContent>
             <TriangularArbitrage />
+{/* Funding Bot Tab */}          <TabsContent value="funding">            <FundingBot />          </TabsContent>
           </TabsContent>
+{/* Funding Bot Tab */}          <TabsContent value="funding">            <FundingBot />          </TabsContent>
 
           <TabsContent value="admin">
             <AdminPanel />
@@ -497,8 +502,11 @@ n          {/* Subscription Tab */}
 
           {/* Triangular Arbitrage Tab */}
           <TabsContent value="triangular">
+{/* Funding Bot Tab */}          <TabsContent value="funding">            <FundingBot />          </TabsContent>
             <TriangularArbitrage />
+{/* Funding Bot Tab */}          <TabsContent value="funding">            <FundingBot />          </TabsContent>
           </TabsContent>
+{/* Funding Bot Tab */}          <TabsContent value="funding">            <FundingBot />          </TabsContent>
 
           <TabsContent value="admin">
             <AdminPanel />
@@ -524,8 +532,11 @@ n          {/* Subscription Tab */}
 
           {/* Triangular Arbitrage Tab */}
           <TabsContent value="triangular">
+{/* Funding Bot Tab */}          <TabsContent value="funding">            <FundingBot />          </TabsContent>
             <TriangularArbitrage />
+{/* Funding Bot Tab */}          <TabsContent value="funding">            <FundingBot />          </TabsContent>
           </TabsContent>
+{/* Funding Bot Tab */}          <TabsContent value="funding">            <FundingBot />          </TabsContent>
 
           <TabsContent value="admin">
             <AdminPanel />
@@ -548,8 +559,11 @@ n          {/* Subscription Tab */}
 
           {/* Triangular Arbitrage Tab */}
           <TabsContent value="triangular">
+{/* Funding Bot Tab */}          <TabsContent value="funding">            <FundingBot />          </TabsContent>
             <TriangularArbitrage />
+{/* Funding Bot Tab */}          <TabsContent value="funding">            <FundingBot />          </TabsContent>
           </TabsContent>
+{/* Funding Bot Tab */}          <TabsContent value="funding">            <FundingBot />          </TabsContent>
 
           <TabsContent value="admin">
             <AdminPanel />
@@ -615,8 +629,11 @@ n          {/* Subscription Tab */}
 
           {/* Triangular Arbitrage Tab */}
           <TabsContent value="triangular">
+{/* Funding Bot Tab */}          <TabsContent value="funding">            <FundingBot />          </TabsContent>
             <TriangularArbitrage />
+{/* Funding Bot Tab */}          <TabsContent value="funding">            <FundingBot />          </TabsContent>
           </TabsContent>
+{/* Funding Bot Tab */}          <TabsContent value="funding">            <FundingBot />          </TabsContent>
 
           <TabsContent value="admin">
             <AdminPanel />
