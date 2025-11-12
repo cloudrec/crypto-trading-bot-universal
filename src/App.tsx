@@ -11,7 +11,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
-// Полный торговый интерфейс
+// Полный торговый интерфейс с 6 биржами
 const FullTradingInterface = () => {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('keys');
@@ -23,7 +23,10 @@ const FullTradingInterface = () => {
   const [apiKeys, setApiKeys] = useState({
     bybit: { api_key: '', api_secret: '', status: 'empty' },
     binance: { api_key: '', api_secret: '', status: 'empty' },
-    gate: { api_key: '', api_secret: '', passphrase: '', status: 'empty' }
+    gate: { api_key: '', api_secret: '', passphrase: '', status: 'empty' },
+    kucoin: { api_key: '', api_secret: '', passphrase: '', status: 'empty' },
+    okx: { api_key: '', api_secret: '', passphrase: '', status: 'empty' },
+    mexc: { api_key: '', api_secret: '', status: 'empty' }
   });
   const [orderForm, setOrderForm] = useState({
     exchange: 'bybit',
@@ -73,7 +76,7 @@ const FullTradingInterface = () => {
     setLoading(prev => ({ ...prev, show_keys: true }));
     
     try {
-      const { data, error } = await supabase.functions.invoke('simple_keys_manager_2025_11_12_07_30', {
+      const { data, error } = await supabase.functions.invoke('extended_keys_manager_6_exchanges_2025_11_12_07_50', {
         body: { action: 'show_keys' }
       });
 
@@ -94,7 +97,7 @@ const FullTradingInterface = () => {
     addLog(`➕ Добавляем тестовый ключ для ${exchange}...`);
     
     try {
-      const { data, error } = await supabase.functions.invoke('simple_keys_manager_2025_11_12_07_30', {
+      const { data, error } = await supabase.functions.invoke('extended_keys_manager_6_exchanges_2025_11_12_07_50', {
         body: { action: 'add_test_key', exchange: exchange }
       });
 
@@ -118,8 +121,8 @@ const FullTradingInterface = () => {
       return;
     }
 
-    if (exchange === 'gate' && !keyData.passphrase) {
-      addLog(`❌ Gate.io: Требуется passphrase`);
+    if (['gate', 'kucoin', 'okx'].includes(exchange) && !keyData.passphrase) {
+      addLog(`❌ ${exchange}: Требуется passphrase`);
       return;
     }
 
@@ -161,7 +164,7 @@ const FullTradingInterface = () => {
     addLog(`💰 Проверяем баланс на ${exchange}...`);
     
     try {
-      const { data, error } = await supabase.functions.invoke('hybrid_trading_engine_2025_11_12_06_50', {
+      const { data, error } = await supabase.functions.invoke('extended_trading_engine_6_exchanges_2025_11_12_07_45', {
         body: { action: 'check_balance', exchange: exchange }
       });
 
@@ -186,7 +189,7 @@ const FullTradingInterface = () => {
     addLog(`📝 Размещаем тестовый ордер на ${exchange}...`);
     
     try {
-      const { data, error } = await supabase.functions.invoke('hybrid_trading_engine_2025_11_12_06_50', {
+      const { data, error } = await supabase.functions.invoke('extended_trading_engine_6_exchanges_2025_11_12_07_45', {
         body: { 
           action: 'place_test_order', 
           exchange: exchange,
@@ -246,7 +249,7 @@ const FullTradingInterface = () => {
     addLog('🗑️ Удаляем все API ключи...');
     
     try {
-      const { data, error } = await supabase.functions.invoke('simple_keys_manager_2025_11_12_07_30', {
+      const { data, error } = await supabase.functions.invoke('extended_keys_manager_6_exchanges_2025_11_12_07_50', {
         body: { action: 'clear_all' }
       });
 
@@ -259,7 +262,10 @@ const FullTradingInterface = () => {
       setApiKeys({
         bybit: { api_key: '', api_secret: '', status: 'empty' },
         binance: { api_key: '', api_secret: '', status: 'empty' },
-        gate: { api_key: '', api_secret: '', passphrase: '', status: 'empty' }
+        gate: { api_key: '', api_secret: '', passphrase: '', status: 'empty' },
+        kucoin: { api_key: '', api_secret: '', passphrase: '', status: 'empty' },
+        okx: { api_key: '', api_secret: '', passphrase: '', status: 'empty' },
+        mexc: { api_key: '', api_secret: '', status: 'empty' }
       });
       
     } catch (error: any) {
@@ -276,7 +282,7 @@ const FullTradingInterface = () => {
       const { data, error } = await supabase.functions.invoke('funding_arbitrage_bot_2025_11_12_05_20', {
         body: { 
           action: 'send_telegram_notification',
-          message: `🤖 Торговый бот активен!\n\n✅ API ключи настроены\n💰 Балансы проверены\n📝 Тестовые ордера работают\n⏰ ${new Date().toLocaleString('ru-RU')}`
+          message: `🤖 Торговый бот активен!\n\n✅ API ключи настроены для 6 бирж\n💰 Балансы проверены\n📝 Тестовые ордера работают\n⏰ ${new Date().toLocaleString('ru-RU')}`
         }
       });
 
@@ -298,9 +304,54 @@ const FullTradingInterface = () => {
   }, []);
 
   const exchanges = [
-    { id: 'bybit', name: 'Bybit', icon: '🟡', color: 'bg-yellow-600' },
-    { id: 'binance', name: 'Binance', icon: '🟨', color: 'bg-orange-600' },
-    { id: 'gate', name: 'Gate.io', icon: '🟦', color: 'bg-blue-600' }
+    { 
+      id: 'bybit', 
+      name: 'Bybit', 
+      icon: '🟡', 
+      color: 'bg-yellow-600',
+      requirements: 'API Key: 18+ символов, Secret: 64 символа',
+      needsPassphrase: false
+    },
+    { 
+      id: 'binance', 
+      name: 'Binance', 
+      icon: '🟨', 
+      color: 'bg-orange-600',
+      requirements: 'API Key: 64 символа, Secret: 64 символа',
+      needsPassphrase: false
+    },
+    { 
+      id: 'gate', 
+      name: 'Gate.io', 
+      icon: '🟦', 
+      color: 'bg-blue-600',
+      requirements: 'API Key + Secret + Passphrase (обязательно!)',
+      needsPassphrase: true
+    },
+    { 
+      id: 'kucoin', 
+      name: 'KuCoin', 
+      icon: '🟢', 
+      color: 'bg-green-600',
+      requirements: 'API Key + Secret + Passphrase (обязательно!)',
+      needsPassphrase: true
+    },
+    { 
+      id: 'okx', 
+      name: 'OKX', 
+      icon: '⚫', 
+      color: 'bg-gray-600',
+      requirements: 'API Key + Secret + Passphrase (обязательно!)',
+      needsPassphrase: true
+    },
+    { 
+      id: 'mexc', 
+      name: 'MEXC', 
+      icon: '🔵', 
+      color: 'bg-indigo-600',
+      requirements: 'API Key: 64 символа, Secret: 64 символа',
+      needsPassphrase: false
+    }
   ];
 
   const getStatusBadge = (status: string) => {
@@ -322,12 +373,12 @@ const FullTradingInterface = () => {
         <Card className="bg-gray-800 border-gray-700">
           <CardHeader>
             <CardTitle className="text-white text-center">
-              🚀 Универсальный Торговый Бот
+              🚀 Универсальный Торговый Бот - 6 Бирж
             </CardTitle>
           </CardHeader>
           <CardContent className="text-center">
             <p className="text-gray-300 mb-4">
-              Полнофункциональная торговая система с API ключами, балансами и тестовыми ордерами
+              Полнофункциональная торговая система: Bybit, Binance, Gate.io, KuCoin, OKX, MEXC
             </p>
             <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
               <Button onClick={runDiagnosis} disabled={loading.diagnose} className="bg-blue-600 hover:bg-blue-700">
@@ -395,7 +446,7 @@ const FullTradingInterface = () => {
                   </CardHeader>
                   <CardContent>
                     {keysInDb.keys.length > 0 ? (
-                      <div className="space-y-2">
+                      <div className="space-y-2 max-h-64 overflow-y-auto">
                         {keysInDb.keys.map((key: any, index: number) => (
                           <div key={index} className="bg-gray-700 p-2 rounded text-sm">
                             <div className="flex justify-between items-center">
@@ -407,6 +458,11 @@ const FullTradingInterface = () => {
                             <div className="text-xs text-gray-300">
                               Key: {key.api_key_preview} ({key.api_key_length})
                             </div>
+                            {key.has_passphrase && (
+                              <div className="text-xs text-gray-300">
+                                🔐 Passphrase: Да
+                              </div>
+                            )}
                           </div>
                         ))}
                       </div>
@@ -418,8 +474,8 @@ const FullTradingInterface = () => {
               )}
             </div>
 
-            {/* Настройка ключей */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* Настройка ключей для всех 6 бирж */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {exchanges.map(exchange => (
                 <Card key={exchange.id} className="bg-gray-800 border-gray-700">
                   <CardHeader>
@@ -429,6 +485,14 @@ const FullTradingInterface = () => {
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
+                    
+                    {/* Требования */}
+                    <div className="bg-gray-700 p-3 rounded">
+                      <h4 className="text-sm font-semibold mb-2">📋 Требования:</h4>
+                      <p className="text-xs text-gray-300">{exchange.requirements}</p>
+                    </div>
+
+                    {/* Поля ввода */}
                     <div className="space-y-3">
                       <div>
                         <Label className="text-gray-300 text-sm">API Key</Label>
@@ -439,7 +503,7 @@ const FullTradingInterface = () => {
                             [exchange.id]: { ...prev[exchange.id as keyof typeof prev], api_key: e.target.value }
                           }))}
                           className="bg-gray-700 border-gray-600 text-sm"
-                          placeholder="API ключ"
+                          placeholder="Вставьте API ключ"
                         />
                       </div>
                       
@@ -452,27 +516,28 @@ const FullTradingInterface = () => {
                             [exchange.id]: { ...prev[exchange.id as keyof typeof prev], api_secret: e.target.value }
                           }))}
                           className="bg-gray-700 border-gray-600 text-sm"
-                          placeholder="API секрет"
+                          placeholder="Вставьте API секрет"
                           rows={2}
                         />
                       </div>
                       
-                      {exchange.id === 'gate' && (
+                      {exchange.needsPassphrase && (
                         <div>
                           <Label className="text-gray-300 text-sm">Passphrase</Label>
                           <Input
-                            value={apiKeys.gate.passphrase}
+                            value={apiKeys[exchange.id as keyof typeof apiKeys].passphrase || ''}
                             onChange={(e) => setApiKeys(prev => ({
                               ...prev,
-                              gate: { ...prev.gate, passphrase: e.target.value }
+                              [exchange.id]: { ...prev[exchange.id as keyof typeof prev], passphrase: e.target.value }
                             }))}
                             className="bg-gray-700 border-gray-600 text-sm"
-                            placeholder="Passphrase"
+                            placeholder={`Passphrase для ${exchange.name}`}
                           />
                         </div>
                       )}
                     </div>
 
+                    {/* Кнопки */}
                     <div className="space-y-2">
                       <Button
                         onClick={() => saveApiKey(exchange.id)}
@@ -509,7 +574,7 @@ const FullTradingInterface = () => {
 
           {/* Вкладка Балансы */}
           <TabsContent value="balances" className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {exchanges.map(exchange => (
                 <Card key={exchange.id} className="bg-gray-800 border-gray-700">
                   <CardHeader>
@@ -639,8 +704,8 @@ const FullTradingInterface = () => {
               </CardContent>
             </Card>
 
-            {/* Торговые кнопки */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* Торговые кнопки для всех 6 бирж */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {exchanges.map(exchange => (
                 <Card key={exchange.id} className="bg-gray-800 border-gray-700">
                   <CardHeader>
@@ -673,7 +738,7 @@ const FullTradingInterface = () => {
           <TabsContent value="logs" className="space-y-6">
             <Card className="bg-gray-800 border-gray-700">
               <CardHeader>
-                <CardTitle className="text-white">📝 Логи Всех Операций</CardTitle>
+                <CardTitle className="text-white">📝 Логи Всех Операций (6 Бирж)</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="bg-gray-900 p-4 rounded max-h-96 overflow-y-auto">
