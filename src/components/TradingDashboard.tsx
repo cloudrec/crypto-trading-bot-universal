@@ -13,6 +13,7 @@ import SubscriptionManager from '@/components/SubscriptionManager';
 import AdminPanel from '@/components/AdminPanel';
 import ArbitrageScanner from "@/components/ArbitrageScanner";
 import TriangularArbitrage from "@/components/TriangularArbitrage";
+import FundingInfo from "@/components/FundingInfo";
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -420,6 +421,7 @@ export default function TradingDashboard() {
                 </CardContent>
               </Card>
             </div>
+{/* Funding Info */}            <FundingInfo />
           </TabsContent>
 n          {/* Subscription Tab */}
           <TabsContent value="subscription">
