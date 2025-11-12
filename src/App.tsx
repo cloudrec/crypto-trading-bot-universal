@@ -2,216 +2,289 @@ import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import AuthForm from '@/components/AuthForm';
-import TradingDashboard from '@/components/TradingDashboard';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 
-// Компонент для тестирования баланса и Telegram
-const BalanceTest = () => {
+// Компонент для тестирования WebSocket подключений
+const WebSocketTest = () => {
   const { user } = useAuth();
-  const [balanceResult, setBalanceResult] = useState<any>(null);
-  const [telegramResult, setTelegramResult] = useState<any>(null);
-  const [loading, setLoading] = useState(false);
-  const [telegramLoading, setTelegramLoading] = useState(false);
+  const [connections, setConnections] = useState<Record<string, any>>({});
+  const [balances, setBalances] = useState<Record<string, any>>({});
+  const [loading, setLoading] = useState<Record<string, boolean>>({});
+  const [logs, setLogs] = useState<string[]>([]);
 
-  const testRealBalance = async (exchange: string) => {
-    setLoading(true);
+  const addLog = (message: string) => {
+    const timestamp = new Date().toLocaleTimeString('ru-RU');
+    setLogs(prev => [`[${timestamp}] ${message}`, ...prev.slice(0, 19)]);
+  };
+
+  const connectWebSocket = async (exchange: string) => {
+    setLoading(prev => ({ ...prev, [exchange]: true }));
+    addLog(`🔌 Подключаемся к WebSocket ${exchange}...`);
+    
     try {
-      console.log(`🔍 Тестируем реальный баланс на ${exchange}...`);
-      
-      const { data, error } = await supabase.functions.invoke('simple_api_test_2025_11_12_06_35', {
+      const { data, error } = await supabase.functions.invoke('websocket_trading_engine_2025_11_12_06_40', {
         body: { 
-          action: 'check_real_balance', 
+          action: 'connect_websocket', 
           exchange: exchange 
         }
       });
 
       if (error) {
-        console.error('❌ Ошибка Edge Function:', error);
+        console.error('❌ Ошибка WebSocket:', error);
         throw error;
       }
 
-      console.log('✅ Результат проверки баланса:', data);
-      setBalanceResult(data);
+      console.log('✅ WebSocket подключен:', data);
+      setConnections(prev => ({ ...prev, [exchange]: data }));
+      addLog(`✅ WebSocket ${exchange} подключен: ${data.connection_id}`);
+      
+      // Начинаем периодически получать баланс
+      startBalancePolling(exchange);
       
     } catch (error: any) {
-      console.error('❌ Ошибка тестирования баланса:', error);
-      setBalanceResult({
-        success: false,
-        error: error.message,
-        exchange: exchange
-      });
+      console.error('❌ Ошибка подключения WebSocket:', error);
+      addLog(`❌ Ошибка WebSocket ${exchange}: ${error.message}`);
     } finally {
-      setLoading(false);
+      setLoading(prev => ({ ...prev, [exchange]: false }));
+    }
+  };
+
+  const startBalancePolling = (exchange: string) => {
+    // Получаем баланс каждые 5 секунд
+    const interval = setInterval(async () => {
+      try {
+        const { data, error } = await supabase.functions.invoke('websocket_trading_engine_2025_11_12_06_40', {
+          body: { 
+            action: 'get_balance', 
+            exchange: exchange 
+          }
+        });
+
+        if (error) {
+          console.error(`❌ Ошибка получения баланса ${exchange}:`, error);
+          return;
+        }
+
+        if (data.success) {
+          setBalances(prev => ({ ...prev, [exchange]: data.balance }));
+          addLog(`💰 Баланс ${exchange}: ${data.balance.total_usdt?.toFixed(2)} USDT (возраст: ${Math.round(data.age_ms/1000)}с)`);
+        }
+        
+      } catch (error: any) {
+        console.error(`❌ Ошибка баланса ${exchange}:`, error);
+      }
+    }, 5000);
+
+    // Сохраняем интервал для очистки
+    setConnections(prev => ({ 
+      ...prev, 
+      [`${exchange}_interval`]: interval 
+    }));
+  };
+
+  const subscribeTicker = async (exchange: string, symbol: string = 'BTCUSDT') => {
+    addLog(`📊 Подписываемся на тикер ${symbol} для ${exchange}...`);
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('websocket_trading_engine_2025_11_12_06_40', {
+        body: { 
+          action: 'subscribe_ticker', 
+          exchange: exchange,
+          symbol: symbol
+        }
+      });
+
+      if (error) throw error;
+
+      addLog(`✅ Подписка на тикер ${symbol} отправлена`);
+      
+    } catch (error: any) {
+      addLog(`❌ Ошибка подписки на тикер: ${error.message}`);
     }
   };
 
   const testTelegram = async () => {
-    setTelegramLoading(true);
+    addLog('📱 Тестируем Telegram уведомления...');
+    
     try {
-      console.log('📱 Тестируем Telegram уведомления...');
-      
       const { data, error } = await supabase.functions.invoke('funding_arbitrage_bot_2025_11_12_05_20', {
         body: { 
           action: 'send_telegram_notification',
-          message: '🧪 Тестовое уведомление от торгового бота!\n\n✅ Система работает корректно\n📊 Время: ' + new Date().toLocaleString('ru-RU')
+          message: '🤖 WebSocket торговый бот запущен!\n\n✅ Подключения активны\n📊 Мониторинг балансов включен\n⏰ ' + new Date().toLocaleString('ru-RU')
         }
       });
 
-      if (error) {
-        console.error('❌ Ошибка Telegram:', error);
-        throw error;
-      }
+      if (error) throw error;
 
-      console.log('✅ Результат Telegram:', data);
-      setTelegramResult(data);
+      if (data.success) {
+        addLog('✅ Telegram уведомление отправлено');
+      }
       
     } catch (error: any) {
-      console.error('❌ Ошибка тестирования Telegram:', error);
-      setTelegramResult({
-        success: false,
-        error: error.message
-      });
-    } finally {
-      setTelegramLoading(false);
+      addLog(`❌ Ошибка Telegram: ${error.message}`);
     }
   };
 
+  // Очистка интервалов при размонтировании
+  useEffect(() => {
+    return () => {
+      Object.values(connections).forEach((connection: any) => {
+        if (connection && typeof connection === 'number') {
+          clearInterval(connection);
+        }
+      });
+    };
+  }, [connections]);
+
+  const exchanges = [
+    { id: 'bybit', name: 'Bybit', icon: '🟡', color: 'bg-yellow-600' },
+    { id: 'binance', name: 'Binance', icon: '🟨', color: 'bg-orange-600' },
+    { id: 'gate', name: 'Gate.io', icon: '🟦', color: 'bg-blue-600' }
+  ];
+
   return (
     <div className="min-h-screen bg-gray-900 text-white p-6">
-      <div className="max-w-4xl mx-auto space-y-6">
+      <div className="max-w-6xl mx-auto space-y-6">
+        
+        {/* Заголовок */}
         <Card className="bg-gray-800 border-gray-700">
           <CardHeader>
-            <CardTitle className="text-white">🧪 Тест Реального Баланса</CardTitle>
+            <CardTitle className="text-white text-center">
+              🚀 WebSocket Торговый Бот - Тестирование Подключений
+            </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-              <Button 
-                onClick={() => testRealBalance('bybit')} 
-                disabled={loading}
-                className="bg-yellow-600 hover:bg-yellow-700"
-              >
-                🟡 Bybit
-              </Button>
-              <Button 
-                onClick={() => testRealBalance('binance')} 
-                disabled={loading}
-                className="bg-orange-600 hover:bg-orange-700"
-              >
-                🟨 Binance
-              </Button>
-              <Button 
-                onClick={() => testRealBalance('gate')} 
-                disabled={loading}
-                className="bg-blue-600 hover:bg-blue-700"
-              >
-                🟦 Gate.io
-              </Button>
-            </div>
-
-            {loading && (
-              <div className="text-center py-4">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mx-auto"></div>
-                <p className="mt-2">Проверяем реальный баланс...</p>
-              </div>
-            )}
-
-            {balanceResult && (
-              <Card className="bg-gray-700 border-gray-600">
-                <CardHeader>
-                  <CardTitle className="text-sm">
-                    {balanceResult.success ? '✅ Успех' : '❌ Ошибка'} - {balanceResult.exchange?.toUpperCase()}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {balanceResult.success ? (
-                    <div className="space-y-2">
-                      <p><strong>Биржа:</strong> {balanceResult.exchange}</p>
-                      <p><strong>Общий баланс:</strong> {balanceResult.balance?.total_usdt?.toFixed(2) || '0'} USDT</p>
-                      <p><strong>USDT доступно:</strong> {balanceResult.balance?.USDT?.available?.toFixed(2) || '0'}</p>
-                      <p><strong>BTC доступно:</strong> {balanceResult.balance?.BTC?.available?.toFixed(8) || '0'}</p>
-                      <p><strong>Это реальные данные:</strong> {balanceResult.is_real ? '✅ Да' : '❌ Нет'}</p>
-                      {balanceResult.balance?.total_usdt > 0 && (
-                        <div className="bg-green-800 p-3 rounded mt-4">
-                          <p className="text-green-200">🎉 <strong>ОТЛИЧНО!</strong> Баланс больше 0 - можно приступать к установке ордеров!</p>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="text-red-400">
-                      <p><strong>Ошибка:</strong> {balanceResult.error}</p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Тест Telegram */}
-        <Card className="bg-gray-800 border-gray-700">
-          <CardHeader>
-            <CardTitle className="text-white">📱 Тест Telegram Уведомлений</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="text-sm text-gray-400 mb-4">
-              <p>Bot Token: 8580424708:AAG***</p>
-              <p>Chat ID: 5498907359</p>
-            </div>
-            
-            <Button 
-              onClick={testTelegram} 
-              disabled={telegramLoading}
-              className="bg-blue-600 hover:bg-blue-700 w-full"
-            >
-              📱 Отправить тестовое сообщение
+          <CardContent className="text-center">
+            <p className="text-gray-300 mb-4">
+              WebSocket подключения предотвращают баны за частые запросы и обеспечивают реальное время
+            </p>
+            <Button onClick={testTelegram} className="bg-blue-600 hover:bg-blue-700">
+              📱 Тест Telegram
             </Button>
-
-            {telegramLoading && (
-              <div className="text-center py-4">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mx-auto"></div>
-                <p className="mt-2">Отправляем Telegram сообщение...</p>
-              </div>
-            )}
-
-            {telegramResult && (
-              <Card className="bg-gray-700 border-gray-600">
-                <CardHeader>
-                  <CardTitle className="text-sm">
-                    {telegramResult.success ? '✅ Telegram работает' : '❌ Ошибка Telegram'}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {telegramResult.success ? (
-                    <div className="text-green-400">
-                      <p>✅ Сообщение успешно отправлено в Telegram!</p>
-                      <p className="text-sm text-gray-400 mt-2">Проверьте ваш Telegram чат</p>
-                    </div>
-                  ) : (
-                    <div className="text-red-400">
-                      <p><strong>Ошибка:</strong> {telegramResult.error}</p>
-                    </div>
-                  )}
-                  <pre className="mt-4 text-xs bg-gray-800 p-2 rounded overflow-auto">
-                    {JSON.stringify(telegramResult, null, 2)}
-                  </pre>
-                </CardContent>
-              </Card>
-            )}
           </CardContent>
         </Card>
 
+        {/* Подключения к биржам */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {exchanges.map(exchange => (
+            <Card key={exchange.id} className="bg-gray-800 border-gray-700">
+              <CardHeader>
+                <CardTitle className="text-white flex items-center justify-between">
+                  <span>{exchange.icon} {exchange.name}</span>
+                  <Badge variant={connections[exchange.id] ? "default" : "secondary"}>
+                    {connections[exchange.id] ? "🟢 Подключен" : "🔴 Отключен"}
+                  </Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                
+                {/* Баланс */}
+                {balances[exchange.id] && (
+                  <div className="bg-gray-700 p-3 rounded">
+                    <h4 className="text-sm font-semibold mb-2">💰 Баланс:</h4>
+                    <div className="space-y-1 text-sm">
+                      <div className="flex justify-between">
+                        <span>USDT:</span>
+                        <span className="font-mono">{balances[exchange.id].USDT?.total?.toFixed(2) || '0.00'}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Доступно:</span>
+                        <span className="font-mono text-green-400">{balances[exchange.id].USDT?.available?.toFixed(2) || '0.00'}</span>
+                      </div>
+                      <div className="flex justify-between font-semibold">
+                        <span>Всего USD:</span>
+                        <span className="font-mono">{balances[exchange.id].total_usdt?.toFixed(2) || '0.00'}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Кнопки управления */}
+                <div className="space-y-2">
+                  <Button
+                    onClick={() => connectWebSocket(exchange.id)}
+                    disabled={loading[exchange.id]}
+                    className={`w-full ${exchange.color} hover:opacity-80`}
+                  >
+                    {loading[exchange.id] ? (
+                      <div className="flex items-center">
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                        Подключаем...
+                      </div>
+                    ) : (
+                      `🔌 Подключить WebSocket`
+                    )}
+                  </Button>
+                  
+                  {connections[exchange.id] && (
+                    <Button
+                      onClick={() => subscribeTicker(exchange.id, 'BTCUSDT')}
+                      variant="outline"
+                      className="w-full border-gray-600"
+                    >
+                      📊 Подписаться на BTCUSDT
+                    </Button>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+
+        {/* Логи */}
+        <Card className="bg-gray-800 border-gray-700">
+          <CardHeader>
+            <CardTitle className="text-white">📝 Логи Системы</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="bg-gray-900 p-4 rounded max-h-96 overflow-y-auto">
+              {logs.length > 0 ? (
+                <div className="space-y-1">
+                  {logs.map((log, index) => (
+                    <div key={index} className="text-sm font-mono text-gray-300">
+                      {log}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-gray-500 text-center">Логи появятся здесь...</p>
+              )}
+            </div>
+            <Button 
+              onClick={() => setLogs([])} 
+              variant="outline" 
+              className="mt-4 border-gray-600"
+            >
+              🗑️ Очистить логи
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* Информация о пользователе */}
         <Card className="bg-gray-800 border-gray-700">
           <CardHeader>
             <CardTitle className="text-white">👤 Информация о пользователе</CardTitle>
           </CardHeader>
           <CardContent>
-            <p><strong>Email:</strong> {user?.email}</p>
-            <p><strong>ID:</strong> {user?.id}</p>
-            <p><strong>Создан:</strong> {user?.created_at ? new Date(user.created_at).toLocaleString('ru-RU') : 'N/A'}</p>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+              <div>
+                <span className="text-gray-400">Email:</span>
+                <div className="font-mono">{user?.email}</div>
+              </div>
+              <div>
+                <span className="text-gray-400">ID:</span>
+                <div className="font-mono text-xs">{user?.id}</div>
+              </div>
+              <div>
+                <span className="text-gray-400">Создан:</span>
+                <div>{user?.created_at ? new Date(user.created_at).toLocaleString('ru-RU') : 'N/A'}</div>
+              </div>
+            </div>
           </CardContent>
         </Card>
 
+        {/* Управление */}
         <div className="text-center space-x-4">
           <Button 
             onClick={() => window.location.reload()} 
@@ -222,15 +295,7 @@ const BalanceTest = () => {
           <Button 
             onClick={() => {
               // Восстанавливаем полную версию
-              const restoreFullVersion = async () => {
-                try {
-                  // Здесь можно добавить логику восстановления
-                  alert('Для восстановления полной версии обратитесь к администратору');
-                } catch (error) {
-                  console.error('Ошибка восстановления:', error);
-                }
-              };
-              restoreFullVersion();
+              alert('Для восстановления полной панели обратитесь к администратору');
             }} 
             className="bg-blue-600 hover:bg-blue-700"
           >
@@ -261,8 +326,7 @@ const AuthenticatedApp = () => {
     return <AuthForm />;
   }
 
-  // Показываем тест баланса вместо полной панели
-  return <BalanceTest />;
+  return <WebSocketTest />;
 };
 
 function App() {
