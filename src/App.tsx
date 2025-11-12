@@ -5,103 +5,147 @@ import AuthForm from '@/components/AuthForm';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
-// Компонент для тестирования WebSocket подключений
-const WebSocketTest = () => {
+// Компонент для тестирования торговых функций
+const TradingTest = () => {
   const { user } = useAuth();
-  const [connections, setConnections] = useState<Record<string, any>>({});
   const [balances, setBalances] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState<Record<string, boolean>>({});
   const [logs, setLogs] = useState<string[]>([]);
+  const [orderForm, setOrderForm] = useState({
+    exchange: 'bybit',
+    symbol: 'BTCUSDT',
+    side: 'Buy',
+    quantity: '0.001',
+    price: '30000'
+  });
 
   const addLog = (message: string) => {
     const timestamp = new Date().toLocaleTimeString('ru-RU');
     setLogs(prev => [`[${timestamp}] ${message}`, ...prev.slice(0, 19)]);
   };
 
-  const connectWebSocket = async (exchange: string) => {
-    setLoading(prev => ({ ...prev, [exchange]: true }));
-    addLog(`🔌 Подключаемся к WebSocket ${exchange}...`);
+  const checkBalance = async (exchange: string) => {
+    setLoading(prev => ({ ...prev, [`balance_${exchange}`]: true }));
+    addLog(`💰 Проверяем баланс на ${exchange}...`);
     
     try {
-      const { data, error } = await supabase.functions.invoke('websocket_trading_engine_2025_11_12_06_40', {
+      const { data, error } = await supabase.functions.invoke('hybrid_trading_engine_2025_11_12_06_50', {
         body: { 
-          action: 'connect_websocket', 
+          action: 'check_balance', 
           exchange: exchange 
         }
       });
 
       if (error) {
-        console.error('❌ Ошибка WebSocket:', error);
+        console.error('❌ Ошибка проверки баланса:', error);
         throw error;
       }
 
-      console.log('✅ WebSocket подключен:', data);
-      setConnections(prev => ({ ...prev, [exchange]: data }));
-      addLog(`✅ WebSocket ${exchange} подключен: ${data.connection_id}`);
+      console.log('✅ Баланс получен:', data);
       
-      // Начинаем периодически получать баланс
-      startBalancePolling(exchange);
+      if (data.success) {
+        setBalances(prev => ({ ...prev, [exchange]: data.balance }));
+        addLog(`✅ Баланс ${exchange}: ${data.balance.total_usdt?.toFixed(2)} USDT`);
+      } else {
+        addLog(`❌ Ошибка баланса ${exchange}: ${data.error}`);
+      }
       
     } catch (error: any) {
-      console.error('❌ Ошибка подключения WebSocket:', error);
-      addLog(`❌ Ошибка WebSocket ${exchange}: ${error.message}`);
+      console.error('❌ Ошибка проверки баланса:', error);
+      addLog(`❌ Ошибка баланса ${exchange}: ${error.message}`);
     } finally {
-      setLoading(prev => ({ ...prev, [exchange]: false }));
+      setLoading(prev => ({ ...prev, [`balance_${exchange}`]: false }));
     }
   };
 
-  const startBalancePolling = (exchange: string) => {
-    // Получаем баланс каждые 5 секунд
-    const interval = setInterval(async () => {
-      try {
-        const { data, error } = await supabase.functions.invoke('websocket_trading_engine_2025_11_12_06_40', {
-          body: { 
-            action: 'get_balance', 
-            exchange: exchange 
-          }
-        });
-
-        if (error) {
-          console.error(`❌ Ошибка получения баланса ${exchange}:`, error);
-          return;
-        }
-
-        if (data.success) {
-          setBalances(prev => ({ ...prev, [exchange]: data.balance }));
-          addLog(`💰 Баланс ${exchange}: ${data.balance.total_usdt?.toFixed(2)} USDT (возраст: ${Math.round(data.age_ms/1000)}с)`);
-        }
-        
-      } catch (error: any) {
-        console.error(`❌ Ошибка баланса ${exchange}:`, error);
-      }
-    }, 5000);
-
-    // Сохраняем интервал для очистки
-    setConnections(prev => ({ 
-      ...prev, 
-      [`${exchange}_interval`]: interval 
-    }));
-  };
-
-  const subscribeTicker = async (exchange: string, symbol: string = 'BTCUSDT') => {
-    addLog(`📊 Подписываемся на тикер ${symbol} для ${exchange}...`);
+  const placeTestOrder = async (exchange: string) => {
+    setLoading(prev => ({ ...prev, [`order_${exchange}`]: true }));
+    addLog(`📝 Размещаем тестовый ордер на ${exchange}...`);
     
     try {
-      const { data, error } = await supabase.functions.invoke('websocket_trading_engine_2025_11_12_06_40', {
+      const { data, error } = await supabase.functions.invoke('hybrid_trading_engine_2025_11_12_06_50', {
         body: { 
-          action: 'subscribe_ticker', 
+          action: 'place_test_order', 
           exchange: exchange,
-          symbol: symbol
+          symbol: orderForm.symbol,
+          side: orderForm.side,
+          quantity: orderForm.quantity,
+          price: orderForm.price
+        }
+      });
+
+      if (error) {
+        console.error('❌ Ошибка размещения ордера:', error);
+        throw error;
+      }
+
+      console.log('✅ Ордер размещен:', data);
+      
+      if (data.success) {
+        addLog(`✅ Ордер ${exchange}: ${data.order.orderId} (${data.order.side} ${data.order.quantity} ${data.order.symbol})`);
+      } else {
+        addLog(`❌ Ошибка ордера ${exchange}: ${data.error}`);
+      }
+      
+    } catch (error: any) {
+      console.error('❌ Ошибка размещения ордера:', error);
+      addLog(`❌ Ошибка ордера ${exchange}: ${error.message}`);
+    } finally {
+      setLoading(prev => ({ ...prev, [`order_${exchange}`]: false }));
+    }
+  };
+
+  const cancelAllOrders = async (exchange: string) => {
+    setLoading(prev => ({ ...prev, [`cancel_${exchange}`]: true }));
+    addLog(`❌ Отменяем все ордера на ${exchange}...`);
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('hybrid_trading_engine_2025_11_12_06_50', {
+        body: { 
+          action: 'cancel_all_orders', 
+          exchange: exchange
         }
       });
 
       if (error) throw error;
 
-      addLog(`✅ Подписка на тикер ${symbol} отправлена`);
+      if (data.success) {
+        addLog(`✅ Отменено ордеров на ${exchange}: ${data.cancelled_orders}`);
+      }
       
     } catch (error: any) {
-      addLog(`❌ Ошибка подписки на тикер: ${error.message}`);
+      addLog(`❌ Ошибка отмены ордеров ${exchange}: ${error.message}`);
+    } finally {
+      setLoading(prev => ({ ...prev, [`cancel_${exchange}`]: false }));
+    }
+  };
+
+  const closeAllPositions = async (exchange: string) => {
+    setLoading(prev => ({ ...prev, [`close_${exchange}`]: true }));
+    addLog(`🔒 Закрываем все позиции на ${exchange}...`);
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('hybrid_trading_engine_2025_11_12_06_50', {
+        body: { 
+          action: 'close_all_positions', 
+          exchange: exchange
+        }
+      });
+
+      if (error) throw error;
+
+      if (data.success) {
+        addLog(`✅ Закрыто позиций на ${exchange}: ${data.closed_positions}`);
+      }
+      
+    } catch (error: any) {
+      addLog(`❌ Ошибка закрытия позиций ${exchange}: ${error.message}`);
+    } finally {
+      setLoading(prev => ({ ...prev, [`close_${exchange}`]: false }));
     }
   };
 
@@ -112,7 +156,7 @@ const WebSocketTest = () => {
       const { data, error } = await supabase.functions.invoke('funding_arbitrage_bot_2025_11_12_05_20', {
         body: { 
           action: 'send_telegram_notification',
-          message: '🤖 WebSocket торговый бот запущен!\n\n✅ Подключения активны\n📊 Мониторинг балансов включен\n⏰ ' + new Date().toLocaleString('ru-RU')
+          message: '🤖 Торговый бот тестирование!\n\n✅ Проверка баланса работает\n📝 Тестовые ордера размещаются\n⏰ ' + new Date().toLocaleString('ru-RU')
         }
       });
 
@@ -127,17 +171,6 @@ const WebSocketTest = () => {
     }
   };
 
-  // Очистка интервалов при размонтировании
-  useEffect(() => {
-    return () => {
-      Object.values(connections).forEach((connection: any) => {
-        if (connection && typeof connection === 'number') {
-          clearInterval(connection);
-        }
-      });
-    };
-  }, [connections]);
-
   const exchanges = [
     { id: 'bybit', name: 'Bybit', icon: '🟡', color: 'bg-yellow-600' },
     { id: 'binance', name: 'Binance', icon: '🟨', color: 'bg-orange-600' },
@@ -146,18 +179,18 @@ const WebSocketTest = () => {
 
   return (
     <div className="min-h-screen bg-gray-900 text-white p-6">
-      <div className="max-w-6xl mx-auto space-y-6">
+      <div className="max-w-7xl mx-auto space-y-6">
         
         {/* Заголовок */}
         <Card className="bg-gray-800 border-gray-700">
           <CardHeader>
             <CardTitle className="text-white text-center">
-              🚀 WebSocket Торговый Бот - Тестирование Подключений
+              🚀 Торговый Бот - Тестирование Функций
             </CardTitle>
           </CardHeader>
           <CardContent className="text-center">
             <p className="text-gray-300 mb-4">
-              WebSocket подключения предотвращают баны за частые запросы и обеспечивают реальное время
+              Проверка баланса, размещение тестовых ордеров и управление позициями
             </p>
             <Button onClick={testTelegram} className="bg-blue-600 hover:bg-blue-700">
               📱 Тест Telegram
@@ -165,15 +198,84 @@ const WebSocketTest = () => {
           </CardContent>
         </Card>
 
-        {/* Подключения к биржам */}
+        {/* Форма ордера */}
+        <Card className="bg-gray-800 border-gray-700">
+          <CardHeader>
+            <CardTitle className="text-white">📝 Параметры Тестового Ордера</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+              <div>
+                <Label className="text-gray-300">Биржа</Label>
+                <Select value={orderForm.exchange} onValueChange={(value) => setOrderForm(prev => ({ ...prev, exchange: value }))}>
+                  <SelectTrigger className="bg-gray-700 border-gray-600">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-gray-700">
+                    {exchanges.map(exchange => (
+                      <SelectItem key={exchange.id} value={exchange.id}>
+                        {exchange.icon} {exchange.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div>
+                <Label className="text-gray-300">Символ</Label>
+                <Input
+                  value={orderForm.symbol}
+                  onChange={(e) => setOrderForm(prev => ({ ...prev, symbol: e.target.value }))}
+                  className="bg-gray-700 border-gray-600"
+                  placeholder="BTCUSDT"
+                />
+              </div>
+              
+              <div>
+                <Label className="text-gray-300">Сторона</Label>
+                <Select value={orderForm.side} onValueChange={(value) => setOrderForm(prev => ({ ...prev, side: value }))}>
+                  <SelectTrigger className="bg-gray-700 border-gray-600">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-gray-700">
+                    <SelectItem value="Buy">🟢 Buy</SelectItem>
+                    <SelectItem value="Sell">🔴 Sell</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div>
+                <Label className="text-gray-300">Количество</Label>
+                <Input
+                  value={orderForm.quantity}
+                  onChange={(e) => setOrderForm(prev => ({ ...prev, quantity: e.target.value }))}
+                  className="bg-gray-700 border-gray-600"
+                  placeholder="0.001"
+                />
+              </div>
+              
+              <div>
+                <Label className="text-gray-300">Цена</Label>
+                <Input
+                  value={orderForm.price}
+                  onChange={(e) => setOrderForm(prev => ({ ...prev, price: e.target.value }))}
+                  className="bg-gray-700 border-gray-600"
+                  placeholder="30000"
+                />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Биржи */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {exchanges.map(exchange => (
             <Card key={exchange.id} className="bg-gray-800 border-gray-700">
               <CardHeader>
                 <CardTitle className="text-white flex items-center justify-between">
                   <span>{exchange.icon} {exchange.name}</span>
-                  <Badge variant={connections[exchange.id] ? "default" : "secondary"}>
-                    {connections[exchange.id] ? "🟢 Подключен" : "🔴 Отключен"}
+                  <Badge variant={balances[exchange.id] ? "default" : "secondary"}>
+                    {balances[exchange.id] ? "💰 Баланс загружен" : "⏳ Нет данных"}
                   </Badge>
                 </CardTitle>
               </CardHeader>
@@ -192,6 +294,10 @@ const WebSocketTest = () => {
                         <span>Доступно:</span>
                         <span className="font-mono text-green-400">{balances[exchange.id].USDT?.available?.toFixed(2) || '0.00'}</span>
                       </div>
+                      <div className="flex justify-between">
+                        <span>BTC:</span>
+                        <span className="font-mono">{balances[exchange.id].BTC?.total?.toFixed(8) || '0.00000000'}</span>
+                      </div>
                       <div className="flex justify-between font-semibold">
                         <span>Всего USD:</span>
                         <span className="font-mono">{balances[exchange.id].total_usdt?.toFixed(2) || '0.00'}</span>
@@ -203,29 +309,54 @@ const WebSocketTest = () => {
                 {/* Кнопки управления */}
                 <div className="space-y-2">
                   <Button
-                    onClick={() => connectWebSocket(exchange.id)}
-                    disabled={loading[exchange.id]}
+                    onClick={() => checkBalance(exchange.id)}
+                    disabled={loading[`balance_${exchange.id}`]}
                     className={`w-full ${exchange.color} hover:opacity-80`}
                   >
-                    {loading[exchange.id] ? (
+                    {loading[`balance_${exchange.id}`] ? (
                       <div className="flex items-center">
                         <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                        Подключаем...
+                        Проверяем...
                       </div>
                     ) : (
-                      `🔌 Подключить WebSocket`
+                      `💰 Проверить баланс`
                     )}
                   </Button>
                   
-                  {connections[exchange.id] && (
+                  <Button
+                    onClick={() => placeTestOrder(exchange.id)}
+                    disabled={loading[`order_${exchange.id}`]}
+                    className="w-full bg-green-600 hover:bg-green-700"
+                  >
+                    {loading[`order_${exchange.id}`] ? (
+                      <div className="flex items-center">
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                        Размещаем...
+                      </div>
+                    ) : (
+                      `📝 Тестовый ордер`
+                    )}
+                  </Button>
+                  
+                  <div className="grid grid-cols-2 gap-2">
                     <Button
-                      onClick={() => subscribeTicker(exchange.id, 'BTCUSDT')}
+                      onClick={() => cancelAllOrders(exchange.id)}
+                      disabled={loading[`cancel_${exchange.id}`]}
                       variant="outline"
-                      className="w-full border-gray-600"
+                      className="border-orange-600 text-orange-400 hover:bg-orange-600"
                     >
-                      📊 Подписаться на BTCUSDT
+                      {loading[`cancel_${exchange.id}`] ? '⏳' : '❌ Отменить'}
                     </Button>
-                  )}
+                    
+                    <Button
+                      onClick={() => closeAllPositions(exchange.id)}
+                      disabled={loading[`close_${exchange.id}`]}
+                      variant="outline"
+                      className="border-red-600 text-red-400 hover:bg-red-600"
+                    >
+                      {loading[`close_${exchange.id}`] ? '⏳' : '🔒 Закрыть'}
+                    </Button>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -235,7 +366,7 @@ const WebSocketTest = () => {
         {/* Логи */}
         <Card className="bg-gray-800 border-gray-700">
           <CardHeader>
-            <CardTitle className="text-white">📝 Логи Системы</CardTitle>
+            <CardTitle className="text-white">📝 Логи Торговых Операций</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="bg-gray-900 p-4 rounded max-h-96 overflow-y-auto">
@@ -248,7 +379,7 @@ const WebSocketTest = () => {
                   ))}
                 </div>
               ) : (
-                <p className="text-gray-500 text-center">Логи появятся здесь...</p>
+                <p className="text-gray-500 text-center">Логи торговых операций появятся здесь...</p>
               )}
             </div>
             <Button 
@@ -294,7 +425,6 @@ const WebSocketTest = () => {
           </Button>
           <Button 
             onClick={() => {
-              // Восстанавливаем полную версию
               alert('Для восстановления полной панели обратитесь к администратору');
             }} 
             className="bg-blue-600 hover:bg-blue-700"
@@ -326,7 +456,7 @@ const AuthenticatedApp = () => {
     return <AuthForm />;
   }
 
-  return <WebSocketTest />;
+  return <TradingTest />;
 };
 
 function App() {
