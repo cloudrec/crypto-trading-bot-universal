@@ -219,7 +219,7 @@ const ApiKeysManager: React.FC<ApiKeysManagerProps> = ({ onKeysUpdate }) => {
     try {
       console.log(`🔍 Проверяем подключение к ${exchange}...`);
 
-      const { data, error } = await supabase.functions.invoke('balance_checker_fixed_bybit_2025_11_12_10_45', {
+      const { data, error } = await supabase.functions.invoke('balance_checker_bybit_v2_fixed_2025_11_12_10_50', {
         body: { action: 'check_balance', exchange: exchange }
       });
 
