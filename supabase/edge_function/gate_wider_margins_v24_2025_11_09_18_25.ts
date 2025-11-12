@@ -24,7 +24,7 @@ serve(async (req) => {
 
     // Получаем API ключи пользователя
     const { data: apiKeys, error: keysError } = await supabaseClient
-      .from('api_keys_dev')
+      .from('api_keys_2025_11_12_05_30')
       .select('*')
       .eq('user_id', user_id)
       .eq('exchange', 'gate')
@@ -119,7 +119,7 @@ async function handleGateBalance(apiKeys: any) {
     const queryString = '';
     const body = '';
     
-    const signature = await createGateSignature(method, url, queryString, body, apiKeys.api_secret, timestamp);
+    const signature = await createGateSignature(method, url, queryString, body, apiKeys.secret, timestamp);
     
     const response = await fetch(`https://api.gateio.ws${url}`, {
       method: method,
@@ -236,7 +236,7 @@ async function handleGateOrderWithTPSL(apiKeys: any, settings: any, orderType: s
       tif: 'ioc'
     });
     
-    const signature1 = await createGateSignature(method1, url1, '', body1, apiKeys.api_secret, timestamp1);
+    const signature1 = await createGateSignature(method1, url1, '', body1, apiKeys.secret, timestamp1);
     
     console.log(`🔵 GATE V24 RESTORED: Order body: ${body1}`);
     
@@ -274,7 +274,7 @@ async function handleGateOrderWithTPSL(apiKeys: any, settings: any, orderType: s
       reduce_only: true
     });
     
-    const signature2 = await createGateSignature(method1, url1, '', tpBody, apiKeys.api_secret, timestamp2);
+    const signature2 = await createGateSignature(method1, url1, '', tpBody, apiKeys.secret, timestamp2);
     
     const tpResponse = await fetch(`https://api.gateio.ws${url1}`, {
       method: method1,
@@ -308,7 +308,7 @@ async function handleGateOrderWithTPSL(apiKeys: any, settings: any, orderType: s
       reduce_only: true
     });
     
-    const signature3 = await createGateSignature(method1, url1, '', slBody, apiKeys.api_secret, timestamp3);
+    const signature3 = await createGateSignature(method1, url1, '', slBody, apiKeys.secret, timestamp3);
     
     const slResponse = await fetch(`https://api.gateio.ws${url1}`, {
       method: method1,
@@ -367,7 +367,7 @@ async function handleGatePositions(apiKeys: any) {
     const queryString = '';
     const body = '';
     
-    const signature = await createGateSignature(method, url, queryString, body, apiKeys.api_secret, timestamp);
+    const signature = await createGateSignature(method, url, queryString, body, apiKeys.secret, timestamp);
     
     const response = await fetch(`https://api.gateio.ws${url}`, {
       method: method,
@@ -449,7 +449,7 @@ async function handleGateClosePositions(apiKeys: any) {
           reduce_only: true
         });
         
-        const signature = await createGateSignature(method, url, '', closeBody, apiKeys.api_secret, timestamp);
+        const signature = await createGateSignature(method, url, '', closeBody, apiKeys.secret, timestamp);
         
         const response = await fetch(`https://api.gateio.ws${url}`, {
           method: method,
@@ -527,7 +527,7 @@ async function handleGateCancelOrders(apiKeys: any) {
     const queryString = '';
     const body = '';
     
-    const signature = await createGateSignature(method, url, queryString, body, apiKeys.api_secret, timestamp);
+    const signature = await createGateSignature(method, url, queryString, body, apiKeys.secret, timestamp);
     
     const response = await fetch(`https://api.gateio.ws${url}`, {
       method: method,

@@ -351,22 +351,49 @@ const ApiKeysManager: React.FC<ApiKeysManagerProps> = ({ onKeysUpdate }) => {
       console.log(`🔍 Проверяем подключение к ${exchange}...`);
 
       // Используем специальную функцию для Bybit
-      const functionName = exchange === 'bybit' 
-        ? 'bybit_alternative_no_sign_url_2025_11_12_11_25'
-        : 'balance_checker_bybit_v2_fixed_2025_11_12_10_50';
+      // Используем специальные функции для разных бирж
+      let functionName;
+      if (exchange === "bybit") {
+        functionName = "bybit_alternative_no_sign_url_2025_11_12_11_25";
+      } else if (exchange === "gate") {
+        functionName = "gate_wider_margins_v24_2025_11_09_18_25";
+      } else {
+        functionName = "balance_checker_bybit_v2_fixed_2025_11_12_10_50";
+      }
+      
+      let requestBody;
+      if (exchange === "gate") {
+        requestBody = { action: "get_balance", user_id: user?.id };
+      } else {
+        requestBody = { action: "check_balance", exchange: exchange };
+      }
       
       const { data, error } = await supabase.functions.invoke(functionName, {
-        body: { action: 'check_balance', exchange: exchange }
+        body: requestBody
       });
 
-      if (error) throw error;
-
-      const status = {
-        connected: data.success && !data.balance.is_demo,
-        balance: data.balance,
-        error: data.error || null,
-        timestamp: new Date().toISOString()
-      };
+      let status;
+      if (exchange === "gate") {
+        // Gate.io возвращает другой формат
+        status = {
+          connected: data.success,
+          balance: {
+            exchange: "gate",
+            USDT: { total: data.balance || 0, available: data.balance || 0 },
+            BTC: { total: 0, available: 0 },
+            total_usdt: data.balance || 0
+          },
+          error: data.success ? null : data.error,
+          timestamp: new Date().toISOString()
+        };
+      } else {
+        status = {
+          connected: data.success && !data.balance.is_demo,
+          balance: data.balance,
+          error: data.error || null,
+          timestamp: new Date().toISOString()
+        };
+      }
 
       setConnectionStatus(prev => ({
         ...prev,
