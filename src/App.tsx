@@ -19,7 +19,7 @@ const BalanceTest = () => {
     try {
       console.log(`🔍 Тестируем реальный баланс на ${exchange}...`);
       
-      const { data, error } = await supabase.functions.invoke('real_balance_checker_2025_11_12_06_05', {
+      const { data, error } = await supabase.functions.invoke('simple_api_test_2025_11_12_06_35', {
         body: { 
           action: 'check_real_balance', 
           exchange: exchange 
