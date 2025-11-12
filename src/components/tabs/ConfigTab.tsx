@@ -31,14 +31,19 @@ const ConfigTab = () => {
 
   const loadConfig = async () => {
     try {
-      const { data, error } = await supabase.functions.invoke('funding_arbitrage_bot_2025_11_12_05_20', {
-        body: { action: 'get_funding_settings' }
-      });
+      const { data, error } = await supabase
+        .from('system_config_2025_11_12_05_30')
+        .select('*')
+        .eq('user_id', user?.id)
+        .single();
 
-      if (error) throw error;
+      if (error && error.code !== 'PGRST116') {
+        console.error('Ошибка загрузки конфигурации:', error);
+        return;
+      }
       
-      if (data.success && data.settings) {
-        setConfig(prev => ({ ...prev, ...data.settings }));
+      if (data) {
+        setConfig(prev => ({ ...prev, ...data }));
       }
     } catch (error) {
       console.error('Ошибка загрузки конфигурации:', error);
@@ -48,9 +53,15 @@ const ConfigTab = () => {
   const saveConfig = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke('funding_arbitrage_bot_2025_11_12_05_20', {
-        body: { action: 'update_funding_settings', ...config }
-      });
+      const { data, error } = await supabase
+        .from('system_config_2025_11_12_05_30')
+        .upsert({
+          user_id: user?.id,
+          ...config,
+          updated_at: new Date().toISOString()
+        })
+        .select()
+        .single();
 
       if (error) throw error;
       

@@ -117,7 +117,7 @@ const AdminPanel = () => {
 
       // Загружаем тарифные планы
       const { data: plansData, error: plansError } = await supabase
-        .from('subscription_plans')
+        .from('subscription_plans_editable_2025_11_12_05_30')
         .select('*')
         .order('price_usd', { ascending: true });
 
@@ -225,7 +225,7 @@ const AdminPanel = () => {
   const savePlan = async (planId: string, updatedPlan: Partial<SubscriptionPlan>) => {
     try {
       const { error } = await supabase
-        .from('subscription_plans')
+        .from('subscription_plans_editable_2025_11_12_05_30')
         .update(updatedPlan)
         .eq('id', planId);
 
@@ -250,7 +250,7 @@ const AdminPanel = () => {
   const createNewPlan = async () => {
     try {
       const { error } = await supabase
-        .from('subscription_plans')
+        .from('subscription_plans_editable_2025_11_12_05_30')
         .insert([newPlan]);
 
       if (error) throw error;
@@ -284,7 +284,7 @@ const AdminPanel = () => {
 
     try {
       const { error } = await supabase
-        .from('subscription_plans')
+        .from('subscription_plans_editable_2025_11_12_05_30')
         .delete()
         .eq('id', planId);
 

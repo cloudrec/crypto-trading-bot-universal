@@ -12,11 +12,7 @@ import LogsTab from '@/components/tabs/LogsTab';
 import FundingBot from '@/components/tabs/FundingBot';
 import AdminPanel from '@/components/tabs/AdminPanel';
 
-// Заглушки для остальных компонентов
-const ApiKeysManager = () => <div className="text-white p-4">API Ключи - в разработке</div>;
-const SubscriptionManager = () => <div className="text-white p-4">Подписка - в разработке</div>;
-const ArbitrageScanner = () => <div className="text-white p-4">Арбитраж - в разработке</div>;
-const TriangularArbitrage = () => <div className="text-white p-4">Треугольный арбитраж - в разработке</div>;
+// Импорты остальных компонентовimport ApiKeysManager from "@/components/tabs/ApiKeysManager";// Заглушки для компонентов в разработкеconst SubscriptionManager = () => <div className="text-white p-4">Подписка - в разработке</div>;const ArbitrageScanner = () => <div className="text-white p-4">Арбитраж - в разработке</div>;const TriangularArbitrage = () => <div className="text-white p-4">Треугольный арбитраж - в разработке</div>;
 
 const TradingDashboard = () => {
   const { user, isAdmin } = useAuth();
