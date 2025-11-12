@@ -16,7 +16,7 @@ const TradingTab = () => {
   const [balances, setBalances] = useState<Record<string, any>>({});
   const [selectedExchange, setSelectedExchange] = useState('bybit');
   
-  // Упрощенные настройки торговли
+  // Настройки торговли с полем задержки
   const [tradingSettings, setTradingSettings] = useState<Record<string, any>>({
     bybit: {
       baseCurrency: 'BTC',
@@ -26,6 +26,7 @@ const TradingTab = () => {
       side: 'Buy',
       stopLoss: '2',
       takeProfit: '5',
+      delayMs: '1000',
       isActive: false
     },
     binance: {
@@ -36,6 +37,7 @@ const TradingTab = () => {
       side: 'Buy',
       stopLoss: '2',
       takeProfit: '5',
+      delayMs: '1000',
       isActive: false
     },
     gate: {
@@ -46,6 +48,7 @@ const TradingTab = () => {
       side: 'Buy',
       stopLoss: '2',
       takeProfit: '5',
+      delayMs: '1000',
       isActive: false
     },
     kucoin: {
@@ -56,6 +59,7 @@ const TradingTab = () => {
       side: 'Buy',
       stopLoss: '2',
       takeProfit: '5',
+      delayMs: '1000',
       isActive: false
     },
     okx: {
@@ -66,6 +70,7 @@ const TradingTab = () => {
       side: 'Buy',
       stopLoss: '2',
       takeProfit: '5',
+      delayMs: '1000',
       isActive: false
     },
     mexc: {
@@ -76,6 +81,7 @@ const TradingTab = () => {
       side: 'Buy',
       stopLoss: '2',
       takeProfit: '5',
+      delayMs: '1000',
       isActive: false
     }
   });
@@ -87,7 +93,8 @@ const TradingTab = () => {
     quantity: '0.001',
     price: '30000',
     stopLoss: '2',
-    takeProfit: '5'
+    takeProfit: '5',
+    delayMs: '1000'
   });
 
   const exchanges = [
@@ -129,6 +136,7 @@ const TradingTab = () => {
               side: setting.side || 'Buy',
               stopLoss: setting.stop_loss || '2',
               takeProfit: setting.take_profit || '5',
+              delayMs: setting.delay_ms || '1000',
               isActive: setting.is_active || false
             };
           }
@@ -141,7 +149,7 @@ const TradingTab = () => {
     }
   };
 
-  // УПРОЩЕННОЕ сохранение настроек - прямой INSERT/UPDATE
+  // Сохранение настроек с полем задержки
   const saveTradingSettings = async () => {
     setLoading(prev => ({ ...prev, save: true }));
     
@@ -152,19 +160,20 @@ const TradingTab = () => {
       console.log('Биржа:', selectedExchange);
       console.log('Stop Loss:', currentSettings?.stopLoss);
       console.log('Take Profit:', currentSettings?.takeProfit);
+      console.log('⏱️ Задержка (мс):', currentSettings?.delayMs);
       console.log('Все настройки:', currentSettings);
       
-      if (!currentSettings?.stopLoss || !currentSettings?.takeProfit) {
-        console.error('❌ ОШИБКА: Stop Loss или Take Profit пустые!');
+      if (!currentSettings?.stopLoss || !currentSettings?.takeProfit || !currentSettings?.delayMs) {
+        console.error('❌ ОШИБКА: Заполните все поля!');
         toast({
           title: "Ошибка",
-          description: "Пожалуйста, заполните Stop Loss и Take Profit",
+          description: "Пожалуйста, заполните Stop Loss, Take Profit и Задержку",
           variant: "destructive",
         });
         return;
       }
 
-      // Используем прямой upsert вместо RPC
+      // Используем прямой upsert
       const { error } = await supabase
         .from('trading_settings_2025_11_12_05_30')
         .upsert({
@@ -177,6 +186,7 @@ const TradingTab = () => {
           side: currentSettings.side,
           stop_loss: currentSettings.stopLoss,
           take_profit: currentSettings.takeProfit,
+          delay_ms: currentSettings.delayMs,
           is_active: currentSettings.isActive,
           updated_at: new Date().toISOString()
         }, {
@@ -191,10 +201,11 @@ const TradingTab = () => {
       console.log('✅ === УСПЕХ СОХРАНЕНИЯ ===');
       console.log('Сохранено Stop Loss:', currentSettings.stopLoss);
       console.log('Сохранено Take Profit:', currentSettings.takeProfit);
+      console.log('⏱️ Сохранена Задержка:', currentSettings.delayMs, 'мс');
 
       toast({
         title: "Успех",
-        description: `Настройки сохранены: Stop Loss ${currentSettings.stopLoss}%, Take Profit ${currentSettings.takeProfit}%`,
+        description: `Настройки сохранены: Stop Loss ${currentSettings.stopLoss}%, Take Profit ${currentSettings.takeProfit}%, Задержка ${currentSettings.delayMs}мс`,
       });
 
       // Перезагружаем настройки для проверки
@@ -244,7 +255,7 @@ const TradingTab = () => {
     }
   };
 
-  // Размещение тестового ордера
+  // Размещение тестового ордера с задержкой
   const placeTestOrder = async () => {
     setLoading(prev => ({ ...prev, order: true }));
     
@@ -258,7 +269,8 @@ const TradingTab = () => {
           quantity: orderForm.quantity,
           price: orderForm.price,
           stopLoss: orderForm.stopLoss,
-          takeProfit: orderForm.takeProfit
+          takeProfit: orderForm.takeProfit,
+          delayMs: orderForm.delayMs
         }
       });
 
@@ -267,7 +279,7 @@ const TradingTab = () => {
       if (data.success) {
         toast({
           title: "Успех",
-          description: `Тестовый ордер размещен на ${orderForm.exchange}: ${data.order.orderId}`,
+          description: `Тестовый ордер размещен на ${orderForm.exchange} с задержкой ${orderForm.delayMs}мс: ${data.order.orderId}`,
         });
       } else {
         toast({
@@ -302,7 +314,7 @@ const TradingTab = () => {
       }
     }));
 
-    // Сохраняем в базу данных используя прямой upsert
+    // Сохраняем в базу данных
     try {
       const { error } = await supabase
         .from('trading_settings_2025_11_12_05_30')
@@ -316,6 +328,7 @@ const TradingTab = () => {
           side: currentSettings.side,
           stop_loss: currentSettings.stopLoss,
           take_profit: currentSettings.takeProfit,
+          delay_ms: currentSettings.delayMs,
           is_active: newActiveState,
           updated_at: new Date().toISOString()
         }, {
@@ -330,7 +343,7 @@ const TradingTab = () => {
         await supabase.functions.invoke('funding_arbitrage_bot_2025_11_12_05_20', {
           body: { 
             action: 'send_notification',
-            message: `🤖 Торговый бот ${newActiveState ? 'ЗАПУЩЕН' : 'ОСТАНОВЛЕН'} на ${selectedExchange}\n\n📊 Параметры:\n• Пара: ${currentSettings.baseCurrency}/${currentSettings.quoteCurrency}\n• Сторона: ${currentSettings.side === 'Buy' ? '🟢 Покупка' : '🔴 Продажа'}\n• Сумма ордера: ${currentSettings.orderAmount} USDT\n• Плечо: x${currentSettings.leverage}\n• Эффективная сумма: ${leverageAmount.toFixed(2)} USDT\n• Stop Loss: ${currentSettings.stopLoss}%\n• Take Profit: ${currentSettings.takeProfit}%`
+            message: `🤖 Торговый бот ${newActiveState ? 'ЗАПУЩЕН' : 'ОСТАНОВЛЕН'} на ${selectedExchange}\n\n📊 Параметры:\n• Пара: ${currentSettings.baseCurrency}/${currentSettings.quoteCurrency}\n• Сторона: ${currentSettings.side === 'Buy' ? '🟢 Покупка' : '🔴 Продажа'}\n• Сумма ордера: ${currentSettings.orderAmount} USDT\n• Плечо: x${currentSettings.leverage}\n• Эффективная сумма: ${leverageAmount.toFixed(2)} USDT\n• Stop Loss: ${currentSettings.stopLoss}%\n• Take Profit: ${currentSettings.takeProfit}%\n• ⏱️ Задержка: ${currentSettings.delayMs}мс`
           }
         });
       } catch (telegramError) {
@@ -360,7 +373,7 @@ const TradingTab = () => {
     }
   };
 
-  // УПРОЩЕННОЕ обновление настроек
+  // Обновление настроек
   const updateSetting = (key: string, value: string | boolean) => {
     console.log(`🔧 Обновляем ${key} = "${value}" для биржи ${selectedExchange}`);
     
@@ -373,7 +386,6 @@ const TradingTab = () => {
         }
       };
       console.log('📝 Новое значение:', newSettings[selectedExchange][key]);
-      console.log('📋 Все настройки биржи:', newSettings[selectedExchange]);
       return newSettings;
     });
   };
@@ -398,7 +410,7 @@ const TradingTab = () => {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Выбор биржи для настроек - ВЫПАДАЮЩИЙ СПИСОК */}
+            {/* Выбор биржи для настроек */}
             <div>
               <Label className="text-gray-300">Выберите биржу для настройки</Label>
               <Select 
@@ -418,7 +430,7 @@ const TradingTab = () => {
               </Select>
             </div>
 
-            {/* Базовая валюта - ПОЛЕ ВВОДА */}
+            {/* Базовая валюта */}
             <div>
               <Label className="text-gray-300">Базовая валюта</Label>
               <Input
@@ -447,7 +459,7 @@ const TradingTab = () => {
               </Select>
             </div>
 
-            {/* Сторона - КАК В ТЕСТОВОМ ОРДЕРЕ */}
+            {/* Сторона */}
             <div>
               <Label className="text-gray-300">Сторона</Label>
               <Select 
@@ -498,7 +510,7 @@ const TradingTab = () => {
               </Select>
             </div>
 
-            {/* Stop Loss - УПРОЩЕННОЕ ПОЛЕ */}
+            {/* Stop Loss */}
             <div>
               <Label className="text-gray-300">Stop Loss (%)</Label>
               <Input
@@ -515,7 +527,7 @@ const TradingTab = () => {
               </div>
             </div>
 
-            {/* Take Profit - УПРОЩЕННОЕ ПОЛЕ */}
+            {/* Take Profit */}
             <div>
               <Label className="text-gray-300">Take Profit (%)</Label>
               <Input
@@ -531,12 +543,29 @@ const TradingTab = () => {
                 Текущее значение: {currentSettings?.takeProfit || 'не задано'}
               </div>
             </div>
+
+            {/* НОВОЕ ПОЛЕ: Задержка в миллисекундах */}
+            <div>
+              <Label className="text-gray-300">⏱️ Задержка входа (мс)</Label>
+              <Input
+                value={currentSettings?.delayMs || ''}
+                onChange={(e) => {
+                  console.log('⏱️ Задержка изменена на:', e.target.value);
+                  updateSetting('delayMs', e.target.value);
+                }}
+                className="bg-gray-700 border-gray-600"
+                placeholder="Введите задержку в миллисекундах"
+              />
+              <div className="text-xs text-gray-400 mt-1">
+                Текущее значение: {currentSettings?.delayMs || 'не задано'} мс
+              </div>
+            </div>
           </div>
 
           {/* Расчет эффективной суммы */}
           <div className="bg-gray-700 p-4 rounded">
             <h4 className="text-white font-semibold mb-2">💰 Расчет позиции:</h4>
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
+            <div className="grid grid-cols-2 md:grid-cols-6 gap-4 text-sm">
               <div>
                 <div className="text-gray-300">Сторона:</div>
                 <div className={`font-mono ${currentSettings?.side === 'Buy' ? 'text-green-400' : 'text-red-400'}`}>
@@ -558,6 +587,10 @@ const TradingTab = () => {
               <div>
                 <div className="text-gray-300">Торговая пара:</div>
                 <div className="text-blue-400 font-mono">{currentSettings?.baseCurrency || 'BTC'}/{currentSettings?.quoteCurrency || 'USDT'}</div>
+              </div>
+              <div>
+                <div className="text-gray-300">⏱️ Задержка:</div>
+                <div className="text-purple-400 font-mono">{currentSettings?.delayMs || '1000'} мс</div>
               </div>
             </div>
             <div className="mt-2 grid grid-cols-2 gap-4 text-sm">
@@ -633,7 +666,7 @@ const TradingTab = () => {
         </Card>
       )}
 
-      {/* Тестовый ордер */}
+      {/* Тестовый ордер с полем задержки */}
       <Card className="bg-gray-800 border-gray-700">
         <CardHeader>
           <CardTitle className="text-white">📝 Тестовый ордер</CardTitle>
@@ -727,6 +760,17 @@ const TradingTab = () => {
                 placeholder="Введите Take Profit"
               />
             </div>
+
+            {/* НОВОЕ ПОЛЕ: Задержка для тестового ордера */}
+            <div>
+              <Label className="text-gray-300">⏱️ Задержка входа (мс)</Label>
+              <Input
+                value={orderForm.delayMs}
+                onChange={(e) => setOrderForm(prev => ({ ...prev, delayMs: e.target.value }))}
+                className="bg-gray-700 border-gray-600"
+                placeholder="Введите задержку в миллисекундах"
+              />
+            </div>
           </div>
 
           <div className="flex space-x-3">
@@ -744,6 +788,33 @@ const TradingTab = () => {
               variant="outline"
             >
               {loading.balances ? '🔄' : '🔄'} Обновить балансы
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Карточка настройки подключения к биржам */}
+      <Card className="bg-gray-800 border-gray-700">
+        <CardHeader>
+          <CardTitle className="text-white">🔗 Подключение к биржам</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-center py-8">
+            <div className="text-6xl mb-4">🔧</div>
+            <h3 className="text-xl text-white mb-2">Настройка API ключей бирж</h3>
+            <p className="text-gray-300 mb-4">
+              Для полноценной работы торгового бота необходимо настроить подключение к биржам через API ключи
+            </p>
+            <Button 
+              className="bg-orange-600 hover:bg-orange-700"
+              onClick={() => {
+                toast({
+                  title: "Переход к настройке API",
+                  description: "Сейчас мы настроим подключение к биржам",
+                });
+              }}
+            >
+              🔑 Настроить API ключи бирж
             </Button>
           </div>
         </CardContent>
