@@ -212,6 +212,54 @@ const ApiKeysManager: React.FC<ApiKeysManagerProps> = ({ onKeysUpdate }) => {
     }
   };
 
+  // Детальное тестирование Bybit
+  const testBybitDetailed = async () => {
+    setLoading(prev => ({ ...prev, bybit_debug: true }));
+    
+    try {
+      console.log('🔬 Запускаем детальное тестирование Bybit...');
+      
+      const { data, error } = await supabase.functions.invoke('bybit_debug_detailed_2025_11_12_11_00', {
+        body: { action: 'test_bybit', exchange: 'bybit' }
+      });
+      
+      if (error) {
+        console.error('❌ Ошибка вызова функции:', error);
+        toast({
+          title: "Ошибка тестирования",
+          description: `Ошибка: ${error.message}`,
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      console.log('🔬 Результат детального тестирования Bybit:', data);
+      
+      if (data.success) {
+        toast({
+          title: "Bybit тест успешен!",
+          description: "Подпись работает правильно",
+        });
+      } else {
+        toast({
+          title: "Bybit тест неудачен",
+          description: `Ошибка: ${data.error}`,
+          variant: "destructive",
+        });
+      }
+      
+    } catch (error: any) {
+      console.error('❌ Ошибка детального тестирования:', error);
+      toast({
+        title: "Ошибка тестирования",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(prev => ({ ...prev, bybit_debug: false }));
+    }
+  };
+
   // Проверка подключения к бирже
   const checkConnection = async (exchange: string) => {
     setLoading(prev => ({ ...prev, [`test_${exchange}`]: true }));
@@ -540,6 +588,17 @@ const ApiKeysManager: React.FC<ApiKeysManagerProps> = ({ onKeysUpdate }) => {
                 >
                   {loading[`test_${exchange.id}`] ? '🔄 Проверка...' : '🔍 Проверить подключение'}
                 </Button>
+                
+                {exchange.id === 'bybit' && (
+                  <Button
+                    onClick={testBybitDetailed}
+                    disabled={loading.bybit_debug}
+                    variant="outline"
+                    className="bg-red-600 hover:bg-red-700 border-red-500"
+                  >
+                    {loading.bybit_debug ? '🔬 Тестирование...' : '🔬 Детальный тест Bybit'}
+                  </Button>
+                )}
               </div>
             </CardContent>
           </Card>
