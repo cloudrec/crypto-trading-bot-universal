@@ -14,20 +14,72 @@ const TradingTab = () => {
   const { toast } = useToast();
   const [loading, setLoading] = useState<Record<string, boolean>>({});
   const [balances, setBalances] = useState<Record<string, any>>({});
+  const [selectedExchange, setSelectedExchange] = useState('bybit');
+  
+  // Настройки торговли для каждой биржи отдельно
+  const [tradingSettings, setTradingSettings] = useState<Record<string, any>>({
+    bybit: {
+      baseCurrency: 'BTC',
+      quoteCurrency: 'USDT',
+      orderAmount: '100',
+      leverage: '1',
+      stopLoss: '2',
+      takeProfit: '5',
+      isActive: false
+    },
+    binance: {
+      baseCurrency: 'BTC',
+      quoteCurrency: 'USDT',
+      orderAmount: '100',
+      leverage: '1',
+      stopLoss: '2',
+      takeProfit: '5',
+      isActive: false
+    },
+    gate: {
+      baseCurrency: 'BTC',
+      quoteCurrency: 'USDT',
+      orderAmount: '100',
+      leverage: '1',
+      stopLoss: '2',
+      takeProfit: '5',
+      isActive: false
+    },
+    kucoin: {
+      baseCurrency: 'BTC',
+      quoteCurrency: 'USDT',
+      orderAmount: '100',
+      leverage: '1',
+      stopLoss: '2',
+      takeProfit: '5',
+      isActive: false
+    },
+    okx: {
+      baseCurrency: 'BTC',
+      quoteCurrency: 'USDT',
+      orderAmount: '100',
+      leverage: '1',
+      stopLoss: '2',
+      takeProfit: '5',
+      isActive: false
+    },
+    mexc: {
+      baseCurrency: 'BTC',
+      quoteCurrency: 'USDT',
+      orderAmount: '100',
+      leverage: '1',
+      stopLoss: '2',
+      takeProfit: '5',
+      isActive: false
+    }
+  });
+
   const [orderForm, setOrderForm] = useState({
     exchange: 'bybit',
     symbol: 'BTCUSDT',
     side: 'Buy',
     quantity: '0.001',
     price: '30000'
-  });
-  const [tradingSettings, setTradingSettings] = useState({
-    baseCurrency: 'BTC',
-    quoteCurrency: 'USDT',
-    maxOrderSize: '0.01',
-    stopLoss: '2',
-    takeProfit: '5',
-    isActive: false
   });
 
   const exchanges = [
@@ -44,103 +96,125 @@ const TradingTab = () => {
     loadAllBalances();
   }, []);
 
+  // Загрузка настроек торговли для всех бирж
   const loadTradingSettings = async () => {
     try {
       const { data, error } = await supabase
         .from('trading_settings_2025_11_12_05_30')
         .select('*')
-        .eq('user_id', user?.id)
-        .single();
+        .eq('user_id', user?.id);
 
-      if (data) {
-        setTradingSettings({
-          baseCurrency: data.base_currency || 'BTC',
-          quoteCurrency: data.quote_currency || 'USDT',
-          maxOrderSize: data.max_order_size?.toString() || '0.01',
-          stopLoss: data.stop_loss?.toString() || '2',
-          takeProfit: data.take_profit?.toString() || '5',
-          isActive: data.is_active || false
+      if (error) throw error;
+
+      // Обновляем настройки для каждой биржи
+      if (data && data.length > 0) {
+        const newSettings = { ...tradingSettings };
+        data.forEach(setting => {
+          if (newSettings[setting.exchange]) {
+            newSettings[setting.exchange] = {
+              baseCurrency: setting.base_currency || 'BTC',
+              quoteCurrency: setting.quote_currency || 'USDT',
+              orderAmount: setting.order_amount || '100',
+              leverage: setting.leverage || '1',
+              stopLoss: setting.stop_loss || '2',
+              takeProfit: setting.take_profit || '5',
+              isActive: setting.is_active || false
+            };
+          }
         });
+        setTradingSettings(newSettings);
       }
-    } catch (error) {
-      console.error('Ошибка загрузки настроек торговли:', error);
+    } catch (error: any) {
+      console.error('Ошибка загрузки настроек:', error);
     }
   };
 
+  // Сохранение настроек для выбранной биржи
   const saveTradingSettings = async () => {
-    setLoading(prev => ({ ...prev, save_settings: true }));
+    setLoading(prev => ({ ...prev, save: true }));
     
     try {
+      const currentSettings = tradingSettings[selectedExchange];
+      
+      // Используем upsert для перезаписи настроек
       const { error } = await supabase
         .from('trading_settings_2025_11_12_05_30')
         .upsert({
           user_id: user?.id,
-          base_currency: tradingSettings.baseCurrency,
-          quote_currency: tradingSettings.quoteCurrency,
-          max_order_size: parseFloat(tradingSettings.maxOrderSize),
-          stop_loss: parseFloat(tradingSettings.stopLoss),
-          take_profit: parseFloat(tradingSettings.takeProfit),
-          is_active: tradingSettings.isActive
+          exchange: selectedExchange,
+          base_currency: currentSettings.baseCurrency,
+          quote_currency: currentSettings.quoteCurrency,
+          order_amount: currentSettings.orderAmount,
+          leverage: currentSettings.leverage,
+          stop_loss: currentSettings.stopLoss,
+          take_profit: currentSettings.takeProfit,
+          is_active: currentSettings.isActive,
+          updated_at: new Date().toISOString()
         }, {
-          onConflict: 'user_id'
+          onConflict: 'user_id,exchange'
         });
 
       if (error) throw error;
 
       toast({
         title: "Успех",
-        description: "Настройки торговли сохранены",
+        description: `Настройки для ${selectedExchange} сохранены`,
       });
+
+      // Перезагружаем настройки для проверки
+      setTimeout(() => {
+        loadTradingSettings();
+      }, 500);
 
     } catch (error: any) {
       toast({
         title: "Ошибка",
-        description: `Ошибка сохранения настроек: ${error.message}`,
+        description: `Ошибка сохранения: ${error.message}`,
         variant: "destructive",
       });
     } finally {
-      setLoading(prev => ({ ...prev, save_settings: false }));
+      setLoading(prev => ({ ...prev, save: false }));
     }
   };
 
+  // Загрузка балансов всех бирж
   const loadAllBalances = async () => {
-    setLoading(prev => ({ ...prev, load_balances: true }));
+    setLoading(prev => ({ ...prev, balances: true }));
     
     try {
-      const balancePromises = exchanges.map(async (exchange) => {
+      const newBalances: Record<string, any> = {};
+      
+      for (const exchange of exchanges) {
         try {
           const { data, error } = await supabase.functions.invoke('improved_trading_engine_with_smart_demo_2025_11_12_09_00', {
             body: { action: 'check_balance', exchange: exchange.id }
           });
 
-          if (data?.success) {
-            return { [exchange.id]: data.balance };
+          if (data && data.success) {
+            newBalances[exchange.id] = data.balance;
           }
-          return { [exchange.id]: null };
-        } catch {
-          return { [exchange.id]: null };
+        } catch (error) {
+          console.error(`Ошибка баланса ${exchange.id}:`, error);
         }
-      });
-
-      const results = await Promise.all(balancePromises);
-      const newBalances = results.reduce((acc, curr) => ({ ...acc, ...curr }), {});
+      }
+      
       setBalances(newBalances);
-
     } catch (error: any) {
       console.error('Ошибка загрузки балансов:', error);
     } finally {
-      setLoading(prev => ({ ...prev, load_balances: false }));
+      setLoading(prev => ({ ...prev, balances: false }));
     }
   };
 
-  const placeTestOrder = async (exchange: string) => {
-    setLoading(prev => ({ ...prev, [`order_${exchange}`]: true }));
+  // Размещение тестового ордера
+  const placeTestOrder = async () => {
+    setLoading(prev => ({ ...prev, order: true }));
     
     try {
       const { data, error } = await supabase.functions.invoke('improved_trading_engine_with_smart_demo_2025_11_12_09_00', {
         body: { 
           action: 'place_test_order', 
-          exchange: exchange,
+          exchange: orderForm.exchange,
           symbol: orderForm.symbol,
           side: orderForm.side,
           quantity: orderForm.quantity,
@@ -153,12 +227,12 @@ const TradingTab = () => {
       if (data.success) {
         toast({
           title: "Успех",
-          description: `Ордер ${exchange}: ${data.order.orderId} размещен`,
+          description: `Тестовый ордер размещен на ${orderForm.exchange}: ${data.order.orderId}`,
         });
       } else {
         toast({
           title: "Ошибка",
-          description: `Ошибка ордера ${exchange}: ${data.error}`,
+          description: `Ошибка ордера: ${data.error}`,
           variant: "destructive",
         });
       }
@@ -166,166 +240,123 @@ const TradingTab = () => {
     } catch (error: any) {
       toast({
         title: "Ошибка",
-        description: `Ошибка ордера ${exchange}: ${error.message}`,
+        description: `Ошибка размещения ордера: ${error.message}`,
         variant: "destructive",
       });
     } finally {
-      setLoading(prev => ({ ...prev, [`order_${exchange}`]: false }));
+      setLoading(prev => ({ ...prev, order: false }));
     }
   };
 
+  // Переключение активности бота для выбранной биржи
   const toggleBot = async () => {
-    const newStatus = !tradingSettings.isActive;
-    setTradingSettings(prev => ({ ...prev, isActive: newStatus }));
+    const currentSettings = tradingSettings[selectedExchange];
+    const newActiveState = !currentSettings.isActive;
     
+    // Обновляем локальное состояние
+    setTradingSettings(prev => ({
+      ...prev,
+      [selectedExchange]: {
+        ...prev[selectedExchange],
+        isActive: newActiveState
+      }
+    }));
+
+    // Сохраняем в базу данных
     try {
-      await saveTradingSettings();
-      
-      toast({
-        title: newStatus ? "Бот запущен" : "Бот остановлен",
-        description: newStatus ? "Торговый бот активирован" : "Торговый бот остановлен",
-      });
+      const { error } = await supabase
+        .from('trading_settings_2025_11_12_05_30')
+        .upsert({
+          user_id: user?.id,
+          exchange: selectedExchange,
+          base_currency: currentSettings.baseCurrency,
+          quote_currency: currentSettings.quoteCurrency,
+          order_amount: currentSettings.orderAmount,
+          leverage: currentSettings.leverage,
+          stop_loss: currentSettings.stopLoss,
+          take_profit: currentSettings.takeProfit,
+          is_active: newActiveState,
+          updated_at: new Date().toISOString()
+        }, {
+          onConflict: 'user_id,exchange'
+        });
+
+      if (error) throw error;
 
       // Отправляем Telegram уведомление
-      await supabase.functions.invoke('funding_arbitrage_bot_2025_11_12_05_20', {
-        body: { 
-          action: 'send_telegram_notification',
-          message: `🤖 Торговый бот ${newStatus ? '🟢 ЗАПУЩЕН' : '🔴 ОСТАНОВЛЕН'}\n\n📊 Настройки:\n💱 Пара: ${tradingSettings.baseCurrency}/${tradingSettings.quoteCurrency}\n📏 Макс. размер: ${tradingSettings.maxOrderSize}\n🛑 Stop Loss: ${tradingSettings.stopLoss}%\n🎯 Take Profit: ${tradingSettings.takeProfit}%\n⏰ ${new Date().toLocaleString('ru-RU')}`
-        }
+      try {
+        const leverageAmount = parseFloat(currentSettings.orderAmount) * parseFloat(currentSettings.leverage);
+        await supabase.functions.invoke('funding_arbitrage_bot_2025_11_12_05_20', {
+          body: { 
+            action: 'send_notification',
+            message: `🤖 Торговый бот ${newActiveState ? 'ЗАПУЩЕН' : 'ОСТАНОВЛЕН'} на ${selectedExchange}\n\n📊 Параметры:\n• Пара: ${currentSettings.baseCurrency}/${currentSettings.quoteCurrency}\n• Сумма ордера: ${currentSettings.orderAmount} USDT\n• Плечо: x${currentSettings.leverage}\n• Эффективная сумма: ${leverageAmount.toFixed(2)} USDT\n• Stop Loss: ${currentSettings.stopLoss}%\n• Take Profit: ${currentSettings.takeProfit}%`
+          }
+        });
+      } catch (telegramError) {
+        console.error('Ошибка Telegram уведомления:', telegramError);
+      }
+
+      toast({
+        title: newActiveState ? "Бот запущен" : "Бот остановлен",
+        description: `Торговый бот ${newActiveState ? 'активирован' : 'деактивирован'} на ${selectedExchange}`,
       });
 
     } catch (error: any) {
-      console.error('Ошибка переключения бота:', error);
-      // Возвращаем обратно при ошибке
-      setTradingSettings(prev => ({ ...prev, isActive: !newStatus }));
+      // Откатываем изменения при ошибке
+      setTradingSettings(prev => ({
+        ...prev,
+        [selectedExchange]: {
+          ...prev[selectedExchange],
+          isActive: currentSettings.isActive
+        }
+      }));
+
+      toast({
+        title: "Ошибка",
+        description: `Ошибка переключения бота: ${error.message}`,
+        variant: "destructive",
+      });
     }
   };
 
+  // Обновление настроек для выбранной биржи
+  const updateSetting = (key: string, value: string | boolean) => {
+    setTradingSettings(prev => ({
+      ...prev,
+      [selectedExchange]: {
+        ...prev[selectedExchange],
+        [key]: value
+      }
+    }));
+  };
+
+  const currentSettings = tradingSettings[selectedExchange];
+  const currentExchange = exchanges.find(ex => ex.id === selectedExchange);
+
+  // Расчет эффективной суммы с плечом
+  const effectiveAmount = parseFloat(currentSettings?.orderAmount || '100') * parseFloat(currentSettings?.leverage || '1');
+
   return (
     <div className="space-y-6">
-      {/* Заголовок и статус */}
+      {/* Настройки торговли для выбранной биржи */}
       <Card className="bg-gray-800 border-gray-700">
         <CardHeader>
           <CardTitle className="text-white flex items-center justify-between">
-            <span>📊 Торговая Панель</span>
-            <div className="flex items-center space-x-4">
-              <Badge variant={tradingSettings.isActive ? "default" : "secondary"}>
-                {tradingSettings.isActive ? "🟢 Активен" : "🔴 Остановлен"}
-              </Badge>
-              <Button
-                onClick={toggleBot}
-                className={tradingSettings.isActive ? "bg-red-600 hover:bg-red-700" : "bg-green-600 hover:bg-green-700"}
-              >
-                {tradingSettings.isActive ? "🛑 Остановить бот" : "▶️ Запустить бот"}
-              </Button>
-            </div>
+            <span>⚙️ Настройки торговли</span>
+            <Badge variant={currentSettings?.isActive ? "default" : "secondary"}>
+              {currentSettings?.isActive ? "🟢 Активен" : "🔴 Остановлен"}
+            </Badge>
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-            <div className="bg-gray-700 p-3 rounded">
-              <div className="text-xl font-bold text-blue-400">{exchanges.length}</div>
-              <div className="text-xs text-gray-300">Бирж подключено</div>
-            </div>
-            <div className="bg-gray-700 p-3 rounded">
-              <div className="text-xl font-bold text-green-400">
-                {Object.values(balances).filter(b => b && b.total_usdt > 0).length}
-              </div>
-              <div className="text-xs text-gray-300">С балансом</div>
-            </div>
-            <div className="bg-gray-700 p-3 rounded">
-              <div className="text-xl font-bold text-yellow-400">
-                {tradingSettings.baseCurrency}/{tradingSettings.quoteCurrency}
-              </div>
-              <div className="text-xs text-gray-300">Торговая пара</div>
-            </div>
-            <div className="bg-gray-700 p-3 rounded">
-              <div className="text-xl font-bold text-purple-400">{tradingSettings.maxOrderSize}</div>
-              <div className="text-xs text-gray-300">Макс. размер</div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        
-        {/* Настройки торговли */}
-        <Card className="bg-gray-800 border-gray-700">
-          <CardHeader>
-            <CardTitle className="text-white">⚙️ Настройки торговли</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label className="text-gray-300">Базовая валюта</Label>
-                <Input
-                  value={tradingSettings.baseCurrency}
-                  onChange={(e) => setTradingSettings(prev => ({ ...prev, baseCurrency: e.target.value }))}
-                  className="bg-gray-700 border-gray-600"
-                  placeholder="BTC"
-                />
-              </div>
-              <div>
-                <Label className="text-gray-300">Котируемая валюта</Label>
-                <Input
-                  value={tradingSettings.quoteCurrency}
-                  onChange={(e) => setTradingSettings(prev => ({ ...prev, quoteCurrency: e.target.value }))}
-                  className="bg-gray-700 border-gray-600"
-                  placeholder="USDT"
-                />
-              </div>
-            </div>
-
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Выбор биржи для настроек - ВЫПАДАЮЩИЙ СПИСОК */}
             <div>
-              <Label className="text-gray-300">Максимальный размер ордера</Label>
-              <Input
-                value={tradingSettings.maxOrderSize}
-                onChange={(e) => setTradingSettings(prev => ({ ...prev, maxOrderSize: e.target.value }))}
-                className="bg-gray-700 border-gray-600"
-                placeholder="0.01"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label className="text-gray-300">Stop Loss (%)</Label>
-                <Input
-                  value={tradingSettings.stopLoss}
-                  onChange={(e) => setTradingSettings(prev => ({ ...prev, stopLoss: e.target.value }))}
-                  className="bg-gray-700 border-gray-600"
-                  placeholder="2"
-                />
-              </div>
-              <div>
-                <Label className="text-gray-300">Take Profit (%)</Label>
-                <Input
-                  value={tradingSettings.takeProfit}
-                  onChange={(e) => setTradingSettings(prev => ({ ...prev, takeProfit: e.target.value }))}
-                  className="bg-gray-700 border-gray-600"
-                  placeholder="5"
-                />
-              </div>
-            </div>
-
-            <Button
-              onClick={saveTradingSettings}
-              disabled={loading.save_settings}
-              className="w-full bg-blue-600 hover:bg-blue-700"
-            >
-              {loading.save_settings ? '🔄 Сохранение...' : '💾 Сохранить настройки'}
-            </Button>
-          </CardContent>
-        </Card>
-
-        {/* Форма тестового ордера */}
-        <Card className="bg-gray-800 border-gray-700">
-          <CardHeader>
-            <CardTitle className="text-white">📝 Тестовый ордер</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <Label className="text-gray-300">Биржа</Label>
-              <Select value={orderForm.exchange} onValueChange={(value) => setOrderForm(prev => ({ ...prev, exchange: value }))}>
+              <Label className="text-gray-300">Выберите биржу для настройки</Label>
+              <Select 
+                value={selectedExchange} 
+                onValueChange={(value) => setSelectedExchange(value)}
+              >
                 <SelectTrigger className="bg-gray-700 border-gray-600">
                   <SelectValue />
                 </SelectTrigger>
@@ -339,121 +370,275 @@ const TradingTab = () => {
               </Select>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label className="text-gray-300">Символ</Label>
-                <Input
-                  value={orderForm.symbol}
-                  onChange={(e) => setOrderForm(prev => ({ ...prev, symbol: e.target.value }))}
-                  className="bg-gray-700 border-gray-600"
-                  placeholder="BTCUSDT"
-                />
-              </div>
-              <div>
-                <Label className="text-gray-300">Сторона</Label>
-                <Select value={orderForm.side} onValueChange={(value) => setOrderForm(prev => ({ ...prev, side: value }))}>
-                  <SelectTrigger className="bg-gray-700 border-gray-600">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="bg-gray-700">
-                    <SelectItem value="Buy">🟢 Buy</SelectItem>
-                    <SelectItem value="Sell">🔴 Sell</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+            {/* Базовая валюта */}
+            <div>
+              <Label className="text-gray-300">Базовая валюта</Label>
+              <Select 
+                value={currentSettings?.baseCurrency || 'BTC'} 
+                onValueChange={(value) => updateSetting('baseCurrency', value)}
+              >
+                <SelectTrigger className="bg-gray-700 border-gray-600">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-gray-700">
+                  <SelectItem value="BTC">BTC</SelectItem>
+                  <SelectItem value="ETH">ETH</SelectItem>
+                  <SelectItem value="BNB">BNB</SelectItem>
+                  <SelectItem value="ADA">ADA</SelectItem>
+                  <SelectItem value="SOL">SOL</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            {/* Котируемая валюта */}
+            <div>
+              <Label className="text-gray-300">Котируемая валюта</Label>
+              <Select 
+                value={currentSettings?.quoteCurrency || 'USDT'} 
+                onValueChange={(value) => updateSetting('quoteCurrency', value)}
+              >
+                <SelectTrigger className="bg-gray-700 border-gray-600">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-gray-700">
+                  <SelectItem value="USDT">USDT</SelectItem>
+                  <SelectItem value="USDC">USDC</SelectItem>
+                  <SelectItem value="BUSD">BUSD</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Сумма ордера */}
+            <div>
+              <Label className="text-gray-300">Сумма ордера (USDT)</Label>
+              <Input
+                value={currentSettings?.orderAmount || '100'}
+                onChange={(e) => updateSetting('orderAmount', e.target.value)}
+                className="bg-gray-700 border-gray-600"
+                placeholder="100"
+              />
+            </div>
+
+            {/* Плечо */}
+            <div>
+              <Label className="text-gray-300">Плечо (x)</Label>
+              <Select 
+                value={currentSettings?.leverage || '1'} 
+                onValueChange={(value) => updateSetting('leverage', value)}
+              >
+                <SelectTrigger className="bg-gray-700 border-gray-600">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-gray-700">
+                  <SelectItem value="1">x1 (без плеча)</SelectItem>
+                  <SelectItem value="2">x2</SelectItem>
+                  <SelectItem value="3">x3</SelectItem>
+                  <SelectItem value="5">x5</SelectItem>
+                  <SelectItem value="10">x10</SelectItem>
+                  <SelectItem value="20">x20</SelectItem>
+                  <SelectItem value="50">x50</SelectItem>
+                  <SelectItem value="100">x100</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Stop Loss */}
+            <div>
+              <Label className="text-gray-300">Stop Loss (%)</Label>
+              <Input
+                value={currentSettings?.stopLoss || '2'}
+                onChange={(e) => updateSetting('stopLoss', e.target.value)}
+                className="bg-gray-700 border-gray-600"
+                placeholder="2"
+              />
+            </div>
+
+            {/* Take Profit */}
+            <div>
+              <Label className="text-gray-300">Take Profit (%)</Label>
+              <Input
+                value={currentSettings?.takeProfit || '5'}
+                onChange={(e) => updateSetting('takeProfit', e.target.value)}
+                className="bg-gray-700 border-gray-600"
+                placeholder="5"
+              />
+            </div>
+          </div>
+
+          {/* Расчет эффективной суммы */}
+          <div className="bg-gray-700 p-4 rounded">
+            <h4 className="text-white font-semibold mb-2">💰 Расчет позиции:</h4>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
               <div>
-                <Label className="text-gray-300">Количество</Label>
-                <Input
-                  value={orderForm.quantity}
-                  onChange={(e) => setOrderForm(prev => ({ ...prev, quantity: e.target.value }))}
-                  className="bg-gray-700 border-gray-600"
-                  placeholder="0.001"
-                />
+                <div className="text-gray-300">Сумма ордера:</div>
+                <div className="text-white font-mono">{currentSettings?.orderAmount || '100'} USDT</div>
               </div>
               <div>
-                <Label className="text-gray-300">Цена</Label>
-                <Input
-                  value={orderForm.price}
-                  onChange={(e) => setOrderForm(prev => ({ ...prev, price: e.target.value }))}
-                  className="bg-gray-700 border-gray-600"
-                  placeholder="30000"
-                />
+                <div className="text-gray-300">Плечо:</div>
+                <div className="text-yellow-400 font-mono">x{currentSettings?.leverage || '1'}</div>
+              </div>
+              <div>
+                <div className="text-gray-300">Эффективная сумма:</div>
+                <div className="text-green-400 font-mono font-bold">{effectiveAmount.toFixed(2)} USDT</div>
+              </div>
+              <div>
+                <div className="text-gray-300">Торговая пара:</div>
+                <div className="text-blue-400 font-mono">{currentSettings?.baseCurrency || 'BTC'}/{currentSettings?.quoteCurrency || 'USDT'}</div>
               </div>
             </div>
+          </div>
+
+          <div className="flex space-x-3">
+            <Button
+              onClick={saveTradingSettings}
+              disabled={loading.save}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              {loading.save ? '🔄 Сохранение...' : '💾 Сохранить настройки'}
+            </Button>
 
             <Button
-              onClick={() => placeTestOrder(orderForm.exchange)}
-              disabled={loading[`order_${orderForm.exchange}`]}
-              className="w-full bg-green-600 hover:bg-green-700"
+              onClick={toggleBot}
+              className={currentSettings?.isActive ? "bg-red-600 hover:bg-red-700" : "bg-green-600 hover:bg-green-700"}
             >
-              {loading[`order_${orderForm.exchange}`] ? '🔄 Размещение...' : '📝 Разместить тестовый ордер'}
+              {currentSettings?.isActive ? "🛑 Остановить бота" : "▶️ Запустить бота"}
             </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Баланс выбранной биржи */}
+      {balances[selectedExchange] && (
+        <Card className="bg-gray-800 border-gray-700">
+          <CardHeader>
+            <CardTitle className="text-white">💰 Баланс - {currentExchange?.icon} {currentExchange?.name}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="bg-gray-700 p-3 rounded text-center">
+                <div className="text-xl font-bold text-green-400">
+                  {balances[selectedExchange].USDT?.total?.toFixed(2) || '0.00'}
+                </div>
+                <div className="text-xs text-gray-300">USDT Всего</div>
+              </div>
+              <div className="bg-gray-700 p-3 rounded text-center">
+                <div className="text-xl font-bold text-blue-400">
+                  {balances[selectedExchange].USDT?.available?.toFixed(2) || '0.00'}
+                </div>
+                <div className="text-xs text-gray-300">USDT Доступно</div>
+              </div>
+              <div className="bg-gray-700 p-3 rounded text-center">
+                <div className="text-xl font-bold text-yellow-400">
+                  {balances[selectedExchange].BTC?.total?.toFixed(6) || '0.000000'}
+                </div>
+                <div className="text-xs text-gray-300">BTC Всего</div>
+              </div>
+              <div className="bg-gray-700 p-3 rounded text-center">
+                <div className="text-xl font-bold text-purple-400">
+                  {balances[selectedExchange].total_usdt?.toFixed(2) || '0.00'}
+                </div>
+                <div className="text-xs text-gray-300">Общий USDT</div>
+              </div>
+            </div>
+            {balances[selectedExchange].is_demo && (
+              <div className="mt-2 text-center">
+                <Badge variant="secondary">🧪 Демо данные</Badge>
+              </div>
+            )}
           </CardContent>
         </Card>
-      </div>
+      )}
 
-      {/* Балансы всех бирж */}
+      {/* Тестовый ордер */}
       <Card className="bg-gray-800 border-gray-700">
         <CardHeader>
-          <CardTitle className="text-white flex items-center justify-between">
-            <span>💰 Балансы всех бирж</span>
+          <CardTitle className="text-white">📝 Тестовый ордер</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Выбор биржи для ордера */}
+            <div>
+              <Label className="text-gray-300">Биржа</Label>
+              <Select 
+                value={orderForm.exchange} 
+                onValueChange={(value) => setOrderForm(prev => ({ ...prev, exchange: value }))}
+              >
+                <SelectTrigger className="bg-gray-700 border-gray-600">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-gray-700">
+                  {exchanges.map(exchange => (
+                    <SelectItem key={exchange.id} value={exchange.id}>
+                      {exchange.icon} {exchange.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label className="text-gray-300">Торговая пара</Label>
+              <Input
+                value={orderForm.symbol}
+                onChange={(e) => setOrderForm(prev => ({ ...prev, symbol: e.target.value }))}
+                className="bg-gray-700 border-gray-600"
+                placeholder="BTCUSDT"
+              />
+            </div>
+
+            <div>
+              <Label className="text-gray-300">Сторона</Label>
+              <Select 
+                value={orderForm.side} 
+                onValueChange={(value) => setOrderForm(prev => ({ ...prev, side: value }))}
+              >
+                <SelectTrigger className="bg-gray-700 border-gray-600">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-gray-700">
+                  <SelectItem value="Buy">🟢 Покупка</SelectItem>
+                  <SelectItem value="Sell">🔴 Продажа</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label className="text-gray-300">Количество</Label>
+              <Input
+                value={orderForm.quantity}
+                onChange={(e) => setOrderForm(prev => ({ ...prev, quantity: e.target.value }))}
+                className="bg-gray-700 border-gray-600"
+                placeholder="0.001"
+              />
+            </div>
+
+            <div>
+              <Label className="text-gray-300">Цена</Label>
+              <Input
+                value={orderForm.price}
+                onChange={(e) => setOrderForm(prev => ({ ...prev, price: e.target.value }))}
+                className="bg-gray-700 border-gray-600"
+                placeholder="30000"
+              />
+            </div>
+          </div>
+
+          <div className="flex space-x-3">
+            <Button
+              onClick={placeTestOrder}
+              disabled={loading.order}
+              className="bg-purple-600 hover:bg-purple-700"
+            >
+              {loading.order ? '🔄 Размещение...' : '📝 Разместить тестовый ордер'}
+            </Button>
+
             <Button
               onClick={loadAllBalances}
-              disabled={loading.load_balances}
+              disabled={loading.balances}
               variant="outline"
-              size="sm"
             >
-              {loading.load_balances ? '🔄' : '🔄'} Обновить все
+              {loading.balances ? '🔄' : '🔄'} Обновить балансы
             </Button>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {exchanges.map(exchange => (
-              <div key={exchange.id} className="bg-gray-700 p-4 rounded">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="font-semibold">{exchange.icon} {exchange.name}</span>
-                  <Badge variant={balances[exchange.id] ? "default" : "secondary"}>
-                    {balances[exchange.id] ? "✅" : "⏳"}
-                  </Badge>
-                </div>
-                
-                {balances[exchange.id] ? (
-                  <div className="space-y-1 text-sm">
-                    <div className="flex justify-between">
-                      <span>USDT:</span>
-                      <span className="font-mono">{balances[exchange.id].USDT?.total?.toFixed(2) || '0.00'}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Доступно:</span>
-                      <span className="font-mono text-green-400">{balances[exchange.id].USDT?.available?.toFixed(2) || '0.00'}</span>
-                    </div>
-                    {balances[exchange.id].BTC && (
-                      <div className="flex justify-between">
-                        <span>BTC:</span>
-                        <span className="font-mono">{balances[exchange.id].BTC?.total?.toFixed(8) || '0.00000000'}</span>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="text-center text-gray-400 text-sm">
-                    Нет данных
-                  </div>
-                )}
-
-                <Button
-                  onClick={() => placeTestOrder(exchange.id)}
-                  disabled={loading[`order_${exchange.id}`]}
-                  className={`w-full mt-3 ${exchange.color} hover:opacity-80`}
-                  size="sm"
-                >
-                  {loading[`order_${exchange.id}`] ? '🔄' : '📝'} Тест ордер
-                </Button>
-              </div>
-            ))}
           </div>
         </CardContent>
       </Card>
