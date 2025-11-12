@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
+import DebugPanel from '@/components/DebugPanel';
 
 interface ApiKeysManagerProps {
   onKeysUpdate?: () => void;
@@ -214,7 +215,7 @@ const ApiKeysManager: React.FC<ApiKeysManagerProps> = ({ onKeysUpdate }) => {
     setLoading(prev => ({ ...prev, [`balance_${exchange}`]: true }));
     
     try {
-      const { data, error } = await supabase.functions.invoke('extended_trading_engine_6_exchanges_2025_11_12_07_45', {
+      const { data, error } = await supabase.functions.invoke('fixed_trading_engine_with_demo_2025_11_12_08_30', {
         body: { action: 'check_balance', exchange: exchange }
       });
 
@@ -224,7 +225,7 @@ const ApiKeysManager: React.FC<ApiKeysManagerProps> = ({ onKeysUpdate }) => {
         setBalances(prev => ({ ...prev, [exchange]: data.balance }));
         toast({
           title: "Успех",
-          description: `Баланс ${exchange}: ${data.balance.total_usdt?.toFixed(2)} USDT`,
+          description: `Баланс ${exchange}: ${data.balance.total_usdt?.toFixed(2)} USDT ${data.is_demo ? '(демо)' : ''}`,
         });
       } else {
         toast({
@@ -333,6 +334,8 @@ const ApiKeysManager: React.FC<ApiKeysManagerProps> = ({ onKeysUpdate }) => {
 
   return (
     <div className="space-y-6">
+      <DebugPanel />
+
       {/* Заголовок и управление */}
       <Card className="bg-gray-800 border-gray-700">
         <CardHeader>
@@ -416,6 +419,9 @@ const ApiKeysManager: React.FC<ApiKeysManagerProps> = ({ onKeysUpdate }) => {
                       <span>Доступно:</span>
                       <span className="font-mono text-green-400">{balances[exchange.id].USDT?.available?.toFixed(2) || '0.00'}</span>
                     </div>
+                    {balances[exchange.id].is_demo && (
+                      <div className="text-xs text-yellow-400">🧪 Демо данные</div>
+                    )}
                   </div>
                 </div>
               )}

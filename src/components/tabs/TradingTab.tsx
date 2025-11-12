@@ -109,7 +109,7 @@ const TradingTab = () => {
     try {
       const balancePromises = exchanges.map(async (exchange) => {
         try {
-          const { data, error } = await supabase.functions.invoke('extended_trading_engine_6_exchanges_2025_11_12_07_45', {
+          const { data, error } = await supabase.functions.invoke('fixed_trading_engine_with_demo_2025_11_12_08_30', {
             body: { action: 'check_balance', exchange: exchange.id }
           });
 
@@ -137,7 +137,7 @@ const TradingTab = () => {
     setLoading(prev => ({ ...prev, [`order_${exchange}`]: true }));
     
     try {
-      const { data, error } = await supabase.functions.invoke('extended_trading_engine_6_exchanges_2025_11_12_07_45', {
+      const { data, error } = await supabase.functions.invoke('fixed_trading_engine_with_demo_2025_11_12_08_30', {
         body: { 
           action: 'place_test_order', 
           exchange: exchange,
