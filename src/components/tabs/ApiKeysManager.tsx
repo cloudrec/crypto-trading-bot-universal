@@ -103,7 +103,12 @@ const ApiKeysManager: React.FC<ApiKeysManagerProps> = ({ onKeysUpdate }) => {
 
       if (data && data.length > 0) {
         const newApiKeys = { ...apiKeys };
+        console.log('🔍 Начальное состояние newApiKeys:', Object.keys(newApiKeys));
+        
         data.forEach(keyData => {
+          console.log(`🔍 Обрабатываем ключ для биржи: ${keyData.exchange}`);
+          console.log(`🔍 Есть ли ${keyData.exchange} в newApiKeys:`, !!newApiKeys[keyData.exchange]);
+          
           if (newApiKeys[keyData.exchange]) {
             newApiKeys[keyData.exchange] = {
               apiKey: keyData.api_key || '',
@@ -117,6 +122,8 @@ const ApiKeysManager: React.FC<ApiKeysManagerProps> = ({ onKeysUpdate }) => {
               passphrase: keyData.passphrase ? '***' : 'пусто',
               testnet: keyData.testnet
             });
+          } else {
+            console.log(`❌ Биржа ${keyData.exchange} не найдена в newApiKeys!`);
           }
         });
         setApiKeys(newApiKeys);
@@ -219,7 +226,7 @@ const ApiKeysManager: React.FC<ApiKeysManagerProps> = ({ onKeysUpdate }) => {
     try {
       console.log('🔬 Запускаем детальное тестирование Bybit...');
       
-      const { data, error } = await supabase.functions.invoke('bybit_final_fixed_no_sign_in_string_2025_11_12_11_20', {
+      const { data, error } = await supabase.functions.invoke('bybit_alternative_no_sign_url_2025_11_12_11_25', {
         body: { action: 'check_balance', exchange: 'bybit' }
       });
       
@@ -282,7 +289,7 @@ const ApiKeysManager: React.FC<ApiKeysManagerProps> = ({ onKeysUpdate }) => {
 
       // Используем специальную функцию для Bybit
       const functionName = exchange === 'bybit' 
-        ? 'bybit_final_fixed_no_sign_in_string_2025_11_12_11_20'
+        ? 'bybit_alternative_no_sign_url_2025_11_12_11_25'
         : 'balance_checker_bybit_v2_fixed_2025_11_12_10_50';
       
       const { data, error } = await supabase.functions.invoke(functionName, {
