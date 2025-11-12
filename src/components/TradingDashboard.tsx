@@ -62,7 +62,7 @@ const EXCHANGES = [
 ];
 
 export default function TradingDashboard() {
-  const { user, signOut } = useAuth();
+  const { user, isAdmin, signOut } = useAuth();
   const [selectedExchange, setSelectedExchange] = useState('bybit');
   const [positions, setPositions] = useState<Position[]>([]);
   const [botLogs, setBotLogs] = useState<BotLog[]>([]);
