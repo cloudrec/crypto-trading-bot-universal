@@ -81,7 +81,7 @@ const QuickApiSetup = () => {
     addLog(`💾 Сохраняем ключи для ${exchange}...`);
     
     try {
-      // Прямое обновление в базе данных
+      // Прямое обновление в базе данных (без updated_at - обновляется автоматически)
       const { error } = await supabase
         .from('api_keys_new')
         .upsert({
@@ -89,8 +89,7 @@ const QuickApiSetup = () => {
           exchange: exchange,
           api_key: keyData.api_key,
           api_secret: keyData.api_secret,
-          passphrase: keyData.passphrase || null,
-          updated_at: new Date().toISOString()
+          passphrase: keyData.passphrase || null
         }, {
           onConflict: 'user_id,exchange'
         });
@@ -184,24 +183,69 @@ const QuickApiSetup = () => {
   };
 
   const testTradingFunctions = async () => {
-    addLog('🚀 Переходим к торговому тестированию...');
+    addLog('🚀 Тестируем торговые функции...');
     
     try {
-      const { data, error } = await supabase.functions.invoke('hybrid_trading_engine_2025_11_12_06_50', {
+      // Тестируем проверку баланса
+      const { data: balanceData, error: balanceError } = await supabase.functions.invoke('hybrid_trading_engine_2025_11_12_06_50', {
         body: { 
           action: 'check_balance', 
           exchange: 'bybit'
         }
       });
 
-      if (data?.success) {
-        addLog(`✅ Торговые функции работают! Баланс: ${data.balance?.total_usdt?.toFixed(2)} USDT`);
+      if (balanceData?.success) {
+        addLog(`✅ Баланс Bybit: ${balanceData.balance?.total_usdt?.toFixed(2)} USDT`);
       } else {
-        addLog(`⚠️ Торговые функции: ${data?.error || 'Неизвестная ошибка'}`);
+        addLog(`⚠️ Баланс Bybit: ${balanceData?.error || 'Неизвестная ошибка'}`);
       }
+
+      // Тестируем размещение тестового ордера
+      const { data: orderData, error: orderError } = await supabase.functions.invoke('hybrid_trading_engine_2025_11_12_06_50', {
+        body: { 
+          action: 'place_test_order', 
+          exchange: 'bybit',
+          symbol: 'BTCUSDT',
+          side: 'Buy',
+          quantity: '0.001',
+          price: '30000'
+        }
+      });
+
+      if (orderData?.success) {
+        addLog(`✅ Тестовый ордер Bybit: ${orderData.order?.orderId}`);
+      } else {
+        addLog(`⚠️ Тестовый ордер Bybit: ${orderData?.error || 'Неизвестная ошибка'}`);
+      }
+
+      addLog('🎯 Торговые функции протестированы!');
       
     } catch (error: any) {
       addLog(`❌ Ошибка торговых функций: ${error.message}`);
+    }
+  };
+
+  const showCurrentKeys = async () => {
+    addLog('🔍 Показываем текущие ключи в базе данных...');
+    
+    try {
+      const { data, error } = await supabase
+        .from('api_keys_new')
+        .select('*')
+        .eq('user_id', user?.id);
+
+      if (error) throw error;
+
+      if (data && data.length > 0) {
+        data.forEach(key => {
+          addLog(`📋 ${key.exchange}: ${key.api_key?.substring(0, 8)}... (${key.api_key?.length} символов)`);
+        });
+      } else {
+        addLog('📋 Ключи в базе данных не найдены');
+      }
+      
+    } catch (error: any) {
+      addLog(`❌ Ошибка получения ключей: ${error.message}`);
     }
   };
 
@@ -260,13 +304,19 @@ const QuickApiSetup = () => {
             <p className="text-gray-300 mb-4">
               Добавьте реальные API ключи для торговли на биржах
             </p>
-            <div className="space-x-4">
+            <div className="space-x-2 space-y-2">
               <Button 
                 onClick={runDiagnosis} 
                 disabled={loading.diagnose}
                 className="bg-blue-600 hover:bg-blue-700"
               >
                 {loading.diagnose ? '🔄 Проверка...' : '🔍 Проверить ключи'}
+              </Button>
+              <Button 
+                onClick={showCurrentKeys}
+                className="bg-purple-600 hover:bg-purple-700"
+              >
+                📋 Показать ключи в БД
               </Button>
               <Button 
                 onClick={testTradingFunctions}
