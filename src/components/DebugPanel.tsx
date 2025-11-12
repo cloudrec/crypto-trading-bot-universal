@@ -12,7 +12,7 @@ const DebugPanel = () => {
 
   const addLog = (message: string) => {
     const timestamp = new Date().toLocaleTimeString('ru-RU');
-    setLogs(prev => [`[${timestamp}] ${message}`, ...prev.slice(0, 9)]);
+    setLogs(prev => [`[${timestamp}] ${message}`, ...prev.slice(0, 19)]);
   };
 
   const testBalance = async (exchange: string) => {
@@ -27,22 +27,38 @@ const DebugPanel = () => {
       });
 
       console.log(`Результат для ${exchange}:`, { data, error });
+      console.log(`Детали data для ${exchange}:`, JSON.stringify(data, null, 2));
 
       if (error) {
-        addLog(`❌ ${exchange}: ${error.message}`);
+        addLog(`❌ ${exchange}: ОШИБКА - ${error.message}`);
         console.error(`Ошибка ${exchange}:`, error);
-      } else if (data) {
-        if (data.success) {
-          addLog(`✅ ${exchange}: ${data.balance.total_usdt?.toFixed(2)} USDT ${data.is_demo ? '(демо)' : ''}`);
-        } else {
-          addLog(`❌ ${exchange}: ${data.error}`);
+      } else if (data && data.success) {
+        const balance = data.balance;
+        const usdtTotal = balance?.USDT?.total || balance?.total_usdt || 0;
+        const isDemoText = data.is_demo ? ' (демо)' : '';
+        addLog(`✅ ${exchange}: ${usdtTotal.toFixed(2)} USDT${isDemoText}`);
+        
+        // Дополнительная информация
+        if (balance?.BTC?.total) {
+          addLog(`   └─ BTC: ${balance.BTC.total.toFixed(6)}`);
         }
+        if (balance?.error) {
+          addLog(`   └─ API Error: ${balance.error}`);
+        }
+      } else if (data && !data.success) {
+        addLog(`❌ ${exchange}: ${data.error || 'Неизвестная ошибка'}`);
+        if (data.balance?.error) {
+          addLog(`   └─ Детали: ${data.balance.error}`);
+        }
+      } else if (data) {
+        addLog(`⚠️ ${exchange}: Получены данные, но нет success флага`);
+        addLog(`   └─ Data: ${JSON.stringify(data).substring(0, 100)}...`);
       } else {
-        addLog(`⚠️ ${exchange}: Нет данных`);
+        addLog(`⚠️ ${exchange}: Нет данных в ответе`);
       }
       
     } catch (error: any) {
-      addLog(`💥 ${exchange}: ${error.message}`);
+      addLog(`💥 ${exchange}: КРИТИЧЕСКАЯ ОШИБКА - ${error.message}`);
       console.error(`Критическая ошибка ${exchange}:`, error);
     } finally {
       setLoading(false);
@@ -51,10 +67,39 @@ const DebugPanel = () => {
 
   const testAllBalances = async () => {
     const exchanges = ['bybit', 'binance', 'gate', 'kucoin', 'okx', 'mexc'];
+    addLog(`🚀 Начинаем тест всех ${exchanges.length} бирж...`);
     
     for (const exchange of exchanges) {
       await testBalance(exchange);
       await new Promise(resolve => setTimeout(resolve, 1000)); // Пауза между запросами
+    }
+    
+    addLog(`🏁 Тест всех бирж завершен!`);
+  };
+
+  const clearLogs = () => {
+    setLogs([]);
+    addLog(`🗑️ Логи очищены`);
+  };
+
+  const testSpecificFunction = async () => {
+    addLog(`🔧 Тестируем прямой вызов функции...`);
+    
+    try {
+      const response = await fetch('/api/v1/functions/fixed_trading_engine_with_demo_2025_11_12_08_30', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
+        },
+        body: JSON.stringify({ action: 'check_balance', exchange: 'bybit' })
+      });
+      
+      const result = await response.text();
+      addLog(`📡 Прямой ответ: ${result.substring(0, 200)}...`);
+      
+    } catch (error: any) {
+      addLog(`💥 Прямой вызов: ${error.message}`);
     }
   };
 
@@ -63,7 +108,12 @@ const DebugPanel = () => {
       <CardHeader>
         <CardTitle className="text-white flex items-center justify-between">
           <span>🔧 Панель отладки</span>
-          <Badge variant="secondary">Debug Mode</Badge>
+          <div className="flex space-x-2">
+            <Badge variant="secondary">Debug Mode</Badge>
+            <Badge variant={loading ? "destructive" : "default"}>
+              {loading ? "🔄 Работает" : "⏸️ Готов"}
+            </Badge>
+          </div>
         </CardTitle>
       </CardHeader>
       <CardContent>
@@ -112,7 +162,7 @@ const DebugPanel = () => {
           </Button>
         </div>
 
-        <div className="flex space-x-2 mb-4">
+        <div className="flex flex-wrap gap-2 mb-4">
           <Button 
             onClick={testAllBalances} 
             disabled={loading}
@@ -121,18 +171,25 @@ const DebugPanel = () => {
             {loading ? '🔄 Тестируем...' : '🚀 Тест всех бирж'}
           </Button>
           <Button 
-            onClick={() => setLogs([])} 
+            onClick={testSpecificFunction} 
+            disabled={loading}
+            variant="outline"
+          >
+            🔧 Прямой тест
+          </Button>
+          <Button 
+            onClick={clearLogs} 
             variant="outline"
           >
             🗑️ Очистить
           </Button>
         </div>
 
-        <div className="bg-gray-900 p-3 rounded max-h-48 overflow-y-auto">
+        <div className="bg-gray-900 p-3 rounded max-h-64 overflow-y-auto">
           <div className="text-xs font-mono text-gray-300">
             {logs.length > 0 ? (
               logs.map((log, index) => (
-                <div key={index} className="mb-1">{log}</div>
+                <div key={index} className="mb-1 break-words">{log}</div>
               ))
             ) : (
               <div className="text-gray-500">Логи отладки появятся здесь...</div>
@@ -140,10 +197,11 @@ const DebugPanel = () => {
           </div>
         </div>
 
-        <div className="mt-4 text-xs text-gray-400">
-          <div>Пользователь: {user?.email}</div>
-          <div>ID: {user?.id?.substring(0, 8)}...</div>
-          <div>Функция: fixed_trading_engine_with_demo_2025_11_12_08_30</div>
+        <div className="mt-4 text-xs text-gray-400 space-y-1">
+          <div>👤 Пользователь: {user?.email}</div>
+          <div>🆔 ID: {user?.id?.substring(0, 8)}...</div>
+          <div>⚡ Функция: fixed_trading_engine_with_demo_2025_11_12_08_30</div>
+          <div>📊 Логов: {logs.length}/20</div>
         </div>
       </CardContent>
     </Card>
