@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Тест Edge Function</title>
+</head>
+<body>
+    <h1>Тест рабочей Edge Function</h1>
+    <button onclick="testFunction()">Тестировать working_trading_2025_11_13_01_40</button>
+    <div id="result"></div>
+
+    <script>
+        async function testFunction() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = 'Тестирование...';
+            
+            try {
+                const response = await fetch('https://scwnehuyklltcnhgychz.supabase.co/functions/v1/working_trading_2025_11_13_01_40', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNjd25laHV5a2xsdGNuaGd5Y2h6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjI0Mjk0ODEsImV4cCI6MjA3ODAwNTQ4MX0.mWi4KCZ3V-OerEKMMee_309kVBvYHm4Nvzv3ey6PsW0'
+                    },
+                    body: JSON.stringify({
+                        exchange: 'bybit',
+                        symbol: 'SUPERUSDT',
+                        side: 'Buy',
+                        leverage: '10',
+                        amount: '100'
+                    })
+                });
+                
+                const data = await response.json();
+                resultDiv.innerHTML = '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+                
+            } catch (error) {
+                resultDiv.innerHTML = 'Ошибка: ' + error.message;
+            }
+        }
+    </script>
+</body>
+</html>
