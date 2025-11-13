@@ -4,12 +4,14 @@ import { supabase } from '@/integrations/supabase/client';
 const TradingTestFixed = () => {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
-  const [formData, setFormData] = useState({
+const [formData, setFormData] = useState({
     exchange: 'bybit',
     symbol: 'BTCUSDT',
     side: 'Buy',
     leverage: '10',
-    amount: '100'
+    amount: '1',
+    tp_percent: '2',
+    sl_percent: '1'
   });
 
   const exchanges = [
@@ -36,14 +38,15 @@ const TradingTestFixed = () => {
       
       console.log('🎯 FIXED: Используем функцию:', functionName);
       
-      const { data, error } = await supabase.functions.invoke(functionName, {
+const { data, error } = await supabase.functions.invoke('universal_trading_2025_11_13_01_35', {
         body: {
-          action: 'place_order_with_tp_sl',
           exchange: formData.exchange,
           symbol: formData.symbol,
           side: formData.side,
           leverage: formData.leverage,
-          amount: formData.amount
+          amount: formData.amount,
+          tp_percent: formData.tp_percent,
+          sl_percent: formData.sl_percent
         }
       });
       
@@ -60,6 +63,74 @@ const TradingTestFixed = () => {
       setResult({
         success: false,
         message: `Ошибка: ${error.message}`,
+        error: error.toString()
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const cancelOrders = async () => {
+    setLoading(true);
+    setResult(null);
+    
+    try {
+      console.log('❌ CANCEL: Отменяем ордера на:', formData.exchange);
+      
+      const { data, error } = await supabase.functions.invoke('universal_trading_2025_11_13_01_35', {
+        body: {
+          exchange: formData.exchange,
+          action: 'cancel_orders'
+        }
+      });
+      
+      console.log('❌ CANCEL: Ответ получен:', { data, error });
+      
+      if (error) {
+        throw error;
+      }
+      
+      setResult(data);
+      
+    } catch (error) {
+      console.error('❌ CANCEL: Ошибка:', error);
+      setResult({
+        success: false,
+        message: `Ошибка отмены: ${error.message}`,
+        error: error.toString()
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const closePositions = async () => {
+    setLoading(true);
+    setResult(null);
+    
+    try {
+      console.log('🔴 CLOSE: Закрываем позиции на:', formData.exchange);
+      
+      const { data, error } = await supabase.functions.invoke('universal_trading_2025_11_13_01_35', {
+        body: {
+          exchange: formData.exchange,
+          action: 'close_positions'
+        }
+      });
+      
+      console.log('🔴 CLOSE: Ответ получен:', { data, error });
+      
+      if (error) {
+        throw error;
+      }
+      
+      setResult(data);
+      
+    } catch (error) {
+      console.error('🔴 CLOSE: Ошибка:', error);
+      setResult({
+        success: false,
+        message: `Ошибка закрытия: ${error.message}`,
         error: error.toString()
       });
     } finally {
@@ -142,7 +213,7 @@ const TradingTestFixed = () => {
             />
           </div>
           
-          <div className="md:col-span-2">
+<div>
             <label className="block text-sm font-medium mb-2">Сумма (USDT):</label>
             <input
               type="number"
@@ -153,15 +224,59 @@ const TradingTestFixed = () => {
               step="0.01"
             />
           </div>
+          
+          <div>
+            <label className="block text-sm font-medium mb-2">Take Profit (%):</label>
+            <input
+              type="number"
+              value={formData.tp_percent}
+              onChange={(e) => handleInputChange('tp_percent', e.target.value)}
+              className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg"
+              min="0"
+              step="0.1"
+              placeholder="2"
+            />
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium mb-2">Stop Loss (%):</label>
+            <input
+              type="number"
+              value={formData.sl_percent}
+              onChange={(e) => handleInputChange('sl_percent', e.target.value)}
+              className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg"
+              min="0"
+              step="0.1"
+              placeholder="1"
+            />
+          </div>
         </div>
         
-        <button
-          onClick={placeTestOrder}
-          disabled={loading}
-          className="mt-6 w-full bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white font-bold py-3 px-6 rounded-lg transition-colors"
-        >
-          {loading ? '⏳ Размещение...' : '🔧 Разместить исправленный ордер'}
-        </button>
+<div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+          <button
+            onClick={placeTestOrder}
+            disabled={loading}
+            className="bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white font-bold py-3 px-6 rounded-lg transition-colors"
+          >
+            {loading ? '⏳ Размещение...' : '🚀 Разместить ордер'}
+          </button>
+          
+          <button
+            onClick={cancelOrders}
+            disabled={loading}
+            className="bg-red-600 hover:bg-red-700 disabled:bg-gray-600 text-white font-bold py-3 px-6 rounded-lg transition-colors"
+          >
+            {loading ? '⏳ Отмена...' : '❌ Отменить ордера'}
+          </button>
+          
+          <button
+            onClick={closePositions}
+            disabled={loading}
+            className="bg-orange-600 hover:bg-orange-700 disabled:bg-gray-600 text-white font-bold py-3 px-6 rounded-lg transition-colors"
+          >
+            {loading ? '⏳ Закрытие...' : '🔴 Закрыть позиции'}
+          </button>
+        </div>
       </div>
       
       {result && (

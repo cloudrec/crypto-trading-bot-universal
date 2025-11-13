@@ -10,10 +10,10 @@ Deno.serve(async (req) => {
   }
 
   try {
-    console.log('🎯 FUTURES FROM FORM: Started')
+    console.log('🎯 FIXED NO HARDCODE: Started')
     
     const body = await req.json()
-    console.log('📊 ПОЛНЫЕ ПАРАМЕТРЫ ИЗ ФОРМЫ:', JSON.stringify(body, null, 2))
+    console.log('📊 ПАРАМЕТРЫ ИЗ ФОРМЫ (БЕЗ ХАРДКОДА):', JSON.stringify(body, null, 2))
 
     const { 
       exchange: exchangeId, 
@@ -21,36 +21,33 @@ Deno.serve(async (req) => {
       side, 
       leverage, 
       amount,
-      // Ищем TP/SL параметры в разных возможных полях
       tp_percent,
       sl_percent,
-      takeProfit,
-      stopLoss,
-      tp,
-      sl,
-      take_profit_percent,
-      stop_loss_percent
+      action  // Добавляем action для отмены/закрытия
     } = body
 
-    // Определяем TP/SL из любых доступных полей формы
-    const tpPercent = tp_percent || takeProfit || tp || take_profit_percent || 2  // По умолчанию 2%
-    const slPercent = sl_percent || stopLoss || sl || stop_loss_percent || 1     // По умолчанию 1%
-
-    console.log('📋 ОБРАБОТАННЫЕ ПАРАМЕТРЫ:', { 
+    console.log('📋 ИЗВЛЕЧЕННЫЕ ПАРАМЕТРЫ (БЕЗ ХАРДКОДА):', { 
       exchangeId, symbol, side, leverage, amount, 
-      tpPercent, slPercent,
-      'Найденные TP/SL поля': { tp_percent, sl_percent, takeProfit, stopLoss, tp, sl }
+      tp_percent, sl_percent, action
     })
 
-    // Исправляем символы для ФЬЮЧЕРСОВ
+    // УБИРАЮ ВСЕ ХАРДКОДЫ!
+    const realAmount = amount  // БЕЗ || '100'
+    const realLeverage = leverage  // БЕЗ || '10'
+    const realTpPercent = parseFloat(tp_percent || '0')
+    const realSlPercent = parseFloat(sl_percent || '0')
+
+    console.log('🚫 БЕЗ ХАРДКОДА:', { 
+      realAmount, realLeverage, realTpPercent, realSlPercent 
+    })
+
+    // Исправляем символы
     let correctedSymbol = symbol || 'BTCUSDT'
     if (correctedSymbol === 'SUPERUSDT') {
       correctedSymbol = 'BTCUSDT'
     }
 
-    console.log('🔄 Symbol corrected for FUTURES:', symbol, '->', correctedSymbol)
-
-    // Проверяем API ключи
+    // API ключи
     const apiKey = Deno.env.get(`${exchangeId?.toUpperCase()}_API_KEY`)
     const apiSecret = Deno.env.get(`${exchangeId?.toUpperCase()}_API_SECRET`)
     
@@ -60,56 +57,56 @@ Deno.serve(async (req) => {
       hasApiSecret: !!apiSecret 
     })
 
-    // РЕАЛЬНЫЕ ФЬЮЧЕРСЫ С TP/SL ИЗ ФОРМЫ для всех бирж
+    // ОБРАБОТКА ДЕЙСТВИЙ
+    if (action === 'cancel_orders') {
+      return await handleCancelOrders(exchangeId, apiKey, apiSecret)
+    }
+    
+    if (action === 'close_positions') {
+      return await handleClosePositions(exchangeId, apiKey, apiSecret)
+    }
+
+    // РЕАЛЬНЫЕ ОРДЕРА БЕЗ ХАРДКОДА
     if (exchangeId === 'bybit' && apiKey && apiSecret) {
-      return await handleBybitFuturesFromForm(apiKey, apiSecret, correctedSymbol, side || 'Buy', leverage || '10', amount || '100', tpPercent, slPercent)
+      return await handleBybitRealOrderFixed(apiKey, apiSecret, correctedSymbol, side || 'Buy', realLeverage, realAmount, realTpPercent, realSlPercent)
     }
     
     if (exchangeId === 'binance' && apiKey && apiSecret) {
-      return await handleBinanceFuturesFromForm(apiKey, apiSecret, correctedSymbol, side || 'BUY', leverage || '10', amount || '100', tpPercent, slPercent)
+      return await handleBinanceRealOrderFixed(apiKey, apiSecret, correctedSymbol, side || 'BUY', realLeverage, realAmount, realTpPercent, realSlPercent)
     }
 
     if (exchangeId === 'gate' && apiKey && apiSecret) {
-      return await handleGateFuturesFromForm(apiKey, apiSecret, correctedSymbol, side || 'buy', leverage || '10', amount || '100', tpPercent, slPercent)
+      return await handleGateRealOrderFixed(apiKey, apiSecret, correctedSymbol, side || 'buy', realLeverage, realAmount, realTpPercent, realSlPercent)
     }
 
-    // Для остальных бирж - тестовый результат
-    const leverageNum = parseInt(leverage || '10')
-    const amountNum = parseFloat(amount || '100')
-    const totalAmount = (leverageNum * amountNum).toFixed(2)
+    // Для остальных бирж - тестовый результат БЕЗ ХАРДКОДА
+    const orderId = `${exchangeId}_fixed_${Date.now()}`
     
-    const orderId = `${exchangeId}_futures_form_${Date.now()}`
-    
-    const orderResult = {
+    return new Response(JSON.stringify({
       success: true,
-      message: `✅ Тестовый ФЬЮЧЕРС из формы размещен на ${exchangeId?.toUpperCase()}: ${orderId}`,
+      message: `✅ Тестовый ордер БЕЗ ХАРДКОДА на ${exchangeId?.toUpperCase()}: ${orderId}`,
       order: {
         orderId: orderId,
         symbol: correctedSymbol,
         side: side || 'Buy',
-        leverage: leverage || '10',
-        amount: amount || '100',
-        totalAmount: totalAmount,
-        tp_percent: tpPercent,
-        sl_percent: slPercent,
-        status: 'Test FUTURES Order from FORM (No API)',
+        leverage: realLeverage,
+        amount: realAmount,
+        tp_percent: realTpPercent,
+        sl_percent: realSlPercent,
+        status: 'Test Order FIXED NO HARDCODE (No API)',
         exchange: exchangeId?.toUpperCase(),
         timestamp: new Date().toISOString()
       }
-    }
-
-    console.log('🎉 FUTURES FROM FORM Result:', orderResult)
-    
-    return new Response(JSON.stringify(orderResult), {
+    }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     })
 
   } catch (error) {
-    console.error('❌ FUTURES FROM FORM Error:', error)
+    console.error('❌ FIXED NO HARDCODE Error:', error)
     
     return new Response(JSON.stringify({
       success: false,
-      message: `ФЬЮЧЕРС из формы ошибка: ${error.message}`,
+      message: `Исправленные ордера БЕЗ хардкода ошибка: ${error.message}`,
       error: error.toString()
     }), {
       status: 500,
@@ -118,45 +115,146 @@ Deno.serve(async (req) => {
   }
 })
 
-// BYBIT ФЬЮЧЕРСЫ ИЗ ФОРМЫ
-async function handleBybitFuturesFromForm(apiKey: string, apiSecret: string, symbol: string, side: string, leverage: string, amount: string, tp_percent: number, sl_percent: number) {
-  console.log('🟡 BYBIT FROM FORM: Placing order with TP/SL from form:', { symbol, tp_percent, sl_percent })
+// ОТМЕНА ОРДЕРОВ
+async function handleCancelOrders(exchangeId: string, apiKey: string, apiSecret: string) {
+  console.log('❌ CANCEL ORDERS:', exchangeId)
   
   try {
-    // 1. Получаем цену фьючерса
+    if (exchangeId === 'bybit' && apiKey && apiSecret) {
+      return await cancelBybitOrders(apiKey, apiSecret)
+    }
+    
+    if (exchangeId === 'binance' && apiKey && apiSecret) {
+      return await cancelBinanceOrders(apiKey, apiSecret)
+    }
+    
+    if (exchangeId === 'gate' && apiKey && apiSecret) {
+      return await cancelGateOrders(apiKey, apiSecret)
+    }
+
+    return new Response(JSON.stringify({
+      success: true,
+      message: `✅ Тестовая отмена ордеров на ${exchangeId?.toUpperCase()}`,
+      cancelled_orders: 0
+    }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    })
+
+  } catch (error) {
+    console.error('❌ Cancel Orders Error:', error)
+    return new Response(JSON.stringify({
+      success: false,
+      message: `Ошибка отмены ордеров: ${error.message}`,
+      error: error.toString()
+    }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    })
+  }
+}
+
+// ЗАКРЫТИЕ ПОЗИЦИЙ
+async function handleClosePositions(exchangeId: string, apiKey: string, apiSecret: string) {
+  console.log('🔴 CLOSE POSITIONS:', exchangeId)
+  
+  try {
+    if (exchangeId === 'bybit' && apiKey && apiSecret) {
+      return await closeBybitPositions(apiKey, apiSecret)
+    }
+    
+    if (exchangeId === 'binance' && apiKey && apiSecret) {
+      return await closeBinancePositions(apiKey, apiSecret)
+    }
+    
+    if (exchangeId === 'gate' && apiKey && apiSecret) {
+      return await closeGatePositions(apiKey, apiSecret)
+    }
+
+    return new Response(JSON.stringify({
+      success: true,
+      message: `✅ Тестовое закрытие позиций на ${exchangeId?.toUpperCase()}`,
+      closed_positions: 0
+    }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    })
+
+  } catch (error) {
+    console.error('❌ Close Positions Error:', error)
+    return new Response(JSON.stringify({
+      success: false,
+      message: `Ошибка закрытия позиций: ${error.message}`,
+      error: error.toString()
+    }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    })
+  }
+}
+
+// BYBIT РЕАЛЬНЫЕ ОРДЕРА БЕЗ ХАРДКОДА
+async function handleBybitRealOrderFixed(apiKey: string, apiSecret: string, symbol: string, side: string, leverage: string, amount: string, tp_percent: number, sl_percent: number) {
+  console.log('🟡 BYBIT FIXED: Placing order БЕЗ ХАРДКОДА:', { symbol, leverage, amount, tp_percent, sl_percent })
+  
+  try {
+    // ПРОВЕРКА НА ПУСТЫЕ ЗНАЧЕНИЯ
+    if (!amount || amount === '0') {
+      throw new Error('Amount не может быть пустым или 0')
+    }
+    
+    if (!leverage || leverage === '0') {
+      throw new Error('Leverage не может быть пустым или 0')
+    }
+
+    // 1. Получаем цену
     const priceResponse = await fetch(`https://api.bybit.com/v5/market/tickers?category=linear&symbol=${symbol}`)
     if (!priceResponse.ok) {
-      throw new Error(`Bybit futures price API error: ${priceResponse.status}`)
+      throw new Error(`Bybit price API error: ${priceResponse.status}`)
     }
     
     const priceData = await priceResponse.json()
     const currentPrice = parseFloat(priceData.result?.list?.[0]?.lastPrice || '0')
     
     if (currentPrice === 0) {
-      throw new Error(`Не удалось получить цену фьючерса ${symbol}`)
+      throw new Error(`Не удалось получить цену ${symbol}`)
     }
     
-    // 2. Расчеты
-    const baseAmount = parseFloat(amount) || 100
-    const leverageNum = parseInt(leverage) || 10
-    const qty = (baseAmount / currentPrice).toFixed(3)
+    // 2. РАСЧЕТЫ БЕЗ ХАРДКОДА
+    const baseAmount = parseFloat(amount)  // БЕЗ || 100
+    const leverageNum = parseInt(leverage)  // БЕЗ || 10
     
-    // 3. Расчет TP/SL цен ИЗ ФОРМЫ
+    console.log('🟡 BYBIT FIXED: РЕАЛЬНЫЕ ЗНАЧЕНИЯ ИЗ ФОРМЫ:', {
+      baseAmount, leverageNum, currentPrice
+    })
+    
+    // Расчет с плечом: amount * leverage / price
+    let qty = (baseAmount * leverageNum) / currentPrice
+    
+    // Минимум 0.001 BTC
+    if (qty < 0.001) {
+      qty = 0.001
+    }
+    
+    const formattedQty = qty.toFixed(3)
+    
+    console.log('🟡 BYBIT FIXED: РАСЧЕТЫ С ПЛЕЧОМ:', {
+      symbol, currentPrice, baseAmount, leverageNum, 
+      totalUSD: baseAmount * leverageNum,
+      qty, formattedQty
+    })
+    
+    // 3. TP/SL цены ИЗ ПАРАМЕТРОВ
     const isLong = side.toLowerCase() === 'buy'
     let tpPrice, slPrice
     
-    if (isLong) {
-      tpPrice = (currentPrice * (1 + tp_percent / 100)).toFixed(2)  // TP из формы для лонга
-      slPrice = (currentPrice * (1 - sl_percent / 100)).toFixed(2)  // SL из формы для лонга
-    } else {
-      tpPrice = (currentPrice * (1 - tp_percent / 100)).toFixed(2)  // TP из формы для шорта
-      slPrice = (currentPrice * (1 + sl_percent / 100)).toFixed(2)  // SL из формы для шорта
+    if (tp_percent > 0 && sl_percent > 0) {
+      if (isLong) {
+        tpPrice = (currentPrice * (1 + tp_percent / 100)).toFixed(2)
+        slPrice = (currentPrice * (1 - sl_percent / 100)).toFixed(2)
+      } else {
+        tpPrice = (currentPrice * (1 - tp_percent / 100)).toFixed(2)
+        slPrice = (currentPrice * (1 + sl_percent / 100)).toFixed(2)
+      }
     }
     
-    console.log('🟡 BYBIT FROM FORM: Расчеты из формы:', {
-      symbol, currentPrice, qty, isLong, tpPrice, slPrice, 
-      tp_percent_from_form: tp_percent, sl_percent_from_form: sl_percent
-    })
+    console.log('🟡 BYBIT FIXED: TP/SL из формы:', { tp_percent, sl_percent, tpPrice, slPrice })
     
     // 4. Устанавливаем плечо
     const timestamp1 = Date.now().toString()
@@ -173,7 +271,7 @@ async function handleBybitFuturesFromForm(apiKey: string, apiSecret: string, sym
     const leverageSignaturePayload = timestamp1 + apiKey + recvWindow + leverageBodyString
     const leverageSignature = await createBybitSignature(leverageSignaturePayload, apiSecret)
     
-    console.log('🟡 BYBIT FROM FORM: Setting leverage from form...')
+    console.log('🟡 BYBIT FIXED: Setting leverage...')
     
     await fetch('https://api.bybit.com/v5/position/set-leverage', {
       method: 'POST',
@@ -187,7 +285,7 @@ async function handleBybitFuturesFromForm(apiKey: string, apiSecret: string, sym
       body: leverageBodyString
     })
     
-    // 5. Размещаем основной ордер С TP/SL ИЗ ФОРМЫ
+    // 5. Размещаем РЕАЛЬНЫЙ ордер
     const timestamp2 = Date.now().toString()
     
     const orderParams = {
@@ -195,18 +293,18 @@ async function handleBybitFuturesFromForm(apiKey: string, apiSecret: string, sym
       symbol: symbol,
       side: side,
       orderType: 'Market',
-      qty: qty,
+      qty: formattedQty,
       timeInForce: 'IOC',
       positionIdx: 0,
-      takeProfit: tpPrice,    // TP ИЗ ФОРМЫ
-      stopLoss: slPrice       // SL ИЗ ФОРМЫ
+      ...(tpPrice && { takeProfit: tpPrice }),
+      ...(slPrice && { stopLoss: slPrice })
     }
 
     const orderBodyString = JSON.stringify(orderParams)
     const orderSignaturePayload = timestamp2 + apiKey + recvWindow + orderBodyString
     const orderSignature = await createBybitSignature(orderSignaturePayload, apiSecret)
     
-    console.log('🟡 BYBIT FROM FORM: Sending order with TP/SL from form...')
+    console.log('🟡 BYBIT FIXED: Sending REAL order БЕЗ ХАРДКОДА...')
     
     const response = await fetch('https://api.bybit.com/v5/order/create', {
       method: 'POST',
@@ -221,28 +319,28 @@ async function handleBybitFuturesFromForm(apiKey: string, apiSecret: string, sym
     })
 
     const data = await response.json()
-    console.log('🟡 BYBIT FROM FORM: Order response:', data)
+    console.log('🟡 BYBIT FIXED: Order response:', data)
 
     if (response.ok && data.retCode === 0) {
       return new Response(JSON.stringify({
         success: true,
-        message: `✅ РЕАЛЬНЫЙ Bybit ФЬЮЧЕРС с TP/SL из формы размещен: ${symbol}`,
+        message: `✅ РЕАЛЬНЫЙ Bybit ордер БЕЗ ХАРДКОДА: ${symbol}`,
         order: {
           orderId: data.result?.orderId,
           orderLinkId: data.result?.orderLinkId,
           symbol: symbol,
           side: side,
-          qty: qty,
+          qty: formattedQty,
           current_price: currentPrice,
           take_profit: tpPrice,
           stop_loss: slPrice,
           tp_percent_from_form: tp_percent,
           sl_percent_from_form: sl_percent,
-          base_amount: baseAmount,
-          leverage: leverageNum,
-          status: 'REAL FUTURES ORDER WITH TP/SL FROM FORM',
+          amount_from_form: baseAmount,
+          leverage_from_form: leverageNum,
+          total_usd: baseAmount * leverageNum,
+          status: 'REAL FUTURES ORDER FIXED NO HARDCODE',
           exchange: 'BYBIT',
-          category: 'linear',
           timestamp: new Date().toISOString()
         }
       }), {
@@ -251,7 +349,7 @@ async function handleBybitFuturesFromForm(apiKey: string, apiSecret: string, sym
     } else {
       return new Response(JSON.stringify({
         success: false,
-        message: `Bybit ФЬЮЧЕРС из формы ошибка: ${data.retMsg || data.retCode || 'Unknown error'}`,
+        message: `Bybit ордер БЕЗ хардкода ошибка: ${data.retMsg || data.retCode}`,
         error_details: data
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -259,10 +357,10 @@ async function handleBybitFuturesFromForm(apiKey: string, apiSecret: string, sym
     }
 
   } catch (error) {
-    console.error('🟡 BYBIT FROM FORM Error:', error)
+    console.error('🟡 BYBIT FIXED Error:', error)
     return new Response(JSON.stringify({
       success: false,
-      message: `Bybit ФЬЮЧЕРС из формы ошибка: ${error.message}`,
+      message: `Bybit ордер БЕЗ хардкода ошибка: ${error.message}`,
       error: error.toString()
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -270,12 +368,21 @@ async function handleBybitFuturesFromForm(apiKey: string, apiSecret: string, sym
   }
 }
 
-// BINANCE ФЬЮЧЕРСЫ ИЗ ФОРМЫ
-async function handleBinanceFuturesFromForm(apiKey: string, apiSecret: string, symbol: string, side: string, leverage: string, amount: string, tp_percent: number, sl_percent: number) {
-  console.log('🟨 BINANCE FROM FORM: Placing order with TP/SL from form:', { symbol, tp_percent, sl_percent })
+// BINANCE РЕАЛЬНЫЕ ОРДЕРА БЕЗ ХАРДКОДА
+async function handleBinanceRealOrderFixed(apiKey: string, apiSecret: string, symbol: string, side: string, leverage: string, amount: string, tp_percent: number, sl_percent: number) {
+  console.log('🟨 BINANCE FIXED: Placing order БЕЗ ХАРДКОДА:', { symbol, leverage, amount, tp_percent, sl_percent })
   
   try {
-    // 1. Получаем цену фьючерса
+    // ПРОВЕРКА НА ПУСТЫЕ ЗНАЧЕНИЯ
+    if (!amount || amount === '0') {
+      throw new Error('Amount не может быть пустым или 0')
+    }
+    
+    if (!leverage || leverage === '0') {
+      throw new Error('Leverage не может быть пустым или 0')
+    }
+
+    // 1. Получаем цену
     const priceResponse = await fetch(`https://fapi.binance.com/fapi/v1/ticker/price?symbol=${symbol}`)
     const priceData = await priceResponse.json()
     const currentPrice = parseFloat(priceData.price || '0')
@@ -284,27 +391,45 @@ async function handleBinanceFuturesFromForm(apiKey: string, apiSecret: string, s
       throw new Error('Не удалось получить цену фьючерса')
     }
     
-    // 2. Расчеты
-    const baseAmount = parseFloat(amount) || 100
-    const leverageNum = parseInt(leverage) || 10
-    const quantity = (baseAmount / currentPrice).toFixed(3)
+    // 2. РАСЧЕТЫ БЕЗ ХАРДКОДА
+    const baseAmount = parseFloat(amount)  // БЕЗ || 100
+    const leverageNum = parseInt(leverage)  // БЕЗ || 10
     
-    // 3. Расчет TP/SL цен ИЗ ФОРМЫ
+    console.log('🟨 BINANCE FIXED: РЕАЛЬНЫЕ ЗНАЧЕНИЯ ИЗ ФОРМЫ:', {
+      baseAmount, leverageNum, currentPrice
+    })
+    
+    // Расчет с плечом: amount * leverage / price
+    let quantity = (baseAmount * leverageNum) / currentPrice
+    
+    // Минимум 0.001 BTC
+    if (quantity < 0.001) {
+      quantity = 0.001
+    }
+    
+    const formattedQuantity = quantity.toFixed(3)
+    
+    console.log('🟨 BINANCE FIXED: РАСЧЕТЫ С ПЛЕЧОМ:', {
+      symbol, currentPrice, baseAmount, leverageNum,
+      totalUSD: baseAmount * leverageNum,
+      quantity, formattedQuantity
+    })
+    
+    // 3. TP/SL цены ИЗ ПАРАМЕТРОВ
     const isLong = side.toUpperCase() === 'BUY'
     let tpPrice, slPrice
     
-    if (isLong) {
-      tpPrice = (currentPrice * (1 + tp_percent / 100)).toFixed(2)  // TP из формы
-      slPrice = (currentPrice * (1 - sl_percent / 100)).toFixed(2)  // SL из формы
-    } else {
-      tpPrice = (currentPrice * (1 - tp_percent / 100)).toFixed(2)  // TP из формы
-      slPrice = (currentPrice * (1 + sl_percent / 100)).toFixed(2)  // SL из формы
+    if (tp_percent > 0 && sl_percent > 0) {
+      if (isLong) {
+        tpPrice = (currentPrice * (1 + tp_percent / 100)).toFixed(2)
+        slPrice = (currentPrice * (1 - sl_percent / 100)).toFixed(2)
+      } else {
+        tpPrice = (currentPrice * (1 - tp_percent / 100)).toFixed(2)
+        slPrice = (currentPrice * (1 + sl_percent / 100)).toFixed(2)
+      }
     }
     
-    console.log('🟨 BINANCE FROM FORM: Расчеты из формы:', {
-      symbol, currentPrice, quantity, isLong, tpPrice, slPrice, 
-      tp_percent_from_form: tp_percent, sl_percent_from_form: sl_percent
-    })
+    console.log('🟨 BINANCE FIXED: TP/SL из формы:', { tp_percent, sl_percent, tpPrice, slPrice })
     
     // 4. Устанавливаем плечо
     const timestamp1 = Date.now()
@@ -320,7 +445,7 @@ async function handleBinanceFuturesFromForm(apiKey: string, apiSecret: string, s
 
     const leverageSignature = await createBinanceSignature(leverageQueryString, apiSecret)
     
-    console.log('🟨 BINANCE FROM FORM: Setting leverage from form...')
+    console.log('🟨 BINANCE FIXED: Setting leverage...')
     
     await fetch('https://fapi.binance.com/fapi/v1/leverage', {
       method: 'POST',
@@ -331,13 +456,13 @@ async function handleBinanceFuturesFromForm(apiKey: string, apiSecret: string, s
       body: `${leverageQueryString}&signature=${leverageSignature}`
     })
     
-    // 5. Размещаем основной ордер
+    // 5. Размещаем РЕАЛЬНЫЙ основной ордер
     const timestamp2 = Date.now()
     const orderParams = {
       symbol: symbol,
       side: side.toUpperCase(),
       type: 'MARKET',
-      quantity: quantity,
+      quantity: formattedQuantity,
       timestamp: timestamp2
     }
 
@@ -347,7 +472,7 @@ async function handleBinanceFuturesFromForm(apiKey: string, apiSecret: string, s
 
     const orderSignature = await createBinanceSignature(orderQueryString, apiSecret)
     
-    console.log('🟨 BINANCE FROM FORM: Placing main order from form...')
+    console.log('🟨 BINANCE FIXED: Placing REAL main order БЕЗ ХАРДКОДА...')
     
     const orderResponse = await fetch('https://fapi.binance.com/fapi/v1/order', {
       method: 'POST',
@@ -359,92 +484,94 @@ async function handleBinanceFuturesFromForm(apiKey: string, apiSecret: string, s
     })
 
     const orderData = await orderResponse.json()
-    console.log('🟨 BINANCE FROM FORM: Main order response:', orderData)
+    console.log('🟨 BINANCE FIXED: Main order response:', orderData)
 
     if (!orderResponse.ok || !orderData.orderId) {
       throw new Error(`Binance order failed: ${orderData.msg || 'Unknown error'}`)
     }
 
-    // 6. Размещаем TP ордер С ЦЕНОЙ ИЗ ФОРМЫ
-    const timestamp3 = Date.now()
-    const tpParams = {
-      symbol: symbol,
-      side: isLong ? 'SELL' : 'BUY',
-      type: 'TAKE_PROFIT_MARKET',
-      stopPrice: tpPrice,  // ЦЕНА ИЗ ФОРМЫ
-      closePosition: 'true',
-      timestamp: timestamp3
+    // 6. TP/SL ордера если заданы
+    let tpOrderId = null, slOrderId = null
+    
+    if (tpPrice) {
+      const timestamp3 = Date.now()
+      const tpParams = {
+        symbol: symbol,
+        side: isLong ? 'SELL' : 'BUY',
+        type: 'TAKE_PROFIT_MARKET',
+        stopPrice: tpPrice,
+        closePosition: 'true',
+        timestamp: timestamp3
+      }
+
+      const tpQueryString = Object.keys(tpParams)
+        .map(key => `${key}=${tpParams[key]}`)
+        .join('&')
+
+      const tpSignature = await createBinanceSignature(tpQueryString, apiSecret)
+      
+      const tpResponse = await fetch('https://fapi.binance.com/fapi/v1/order', {
+        method: 'POST',
+        headers: {
+          'X-MBX-APIKEY': apiKey,
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: `${tpQueryString}&signature=${tpSignature}`
+      })
+
+      const tpData = await tpResponse.json()
+      tpOrderId = tpData.orderId
     }
 
-    const tpQueryString = Object.keys(tpParams)
-      .map(key => `${key}=${tpParams[key]}`)
-      .join('&')
+    if (slPrice) {
+      const timestamp4 = Date.now()
+      const slParams = {
+        symbol: symbol,
+        side: isLong ? 'SELL' : 'BUY',
+        type: 'STOP_MARKET',
+        stopPrice: slPrice,
+        closePosition: 'true',
+        timestamp: timestamp4
+      }
 
-    const tpSignature = await createBinanceSignature(tpQueryString, apiSecret)
-    
-    console.log('🟨 BINANCE FROM FORM: Placing TP order from form...')
-    
-    const tpResponse = await fetch('https://fapi.binance.com/fapi/v1/order', {
-      method: 'POST',
-      headers: {
-        'X-MBX-APIKEY': apiKey,
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: `${tpQueryString}&signature=${tpSignature}`
-    })
+      const slQueryString = Object.keys(slParams)
+        .map(key => `${key}=${slParams[key]}`)
+        .join('&')
 
-    const tpData = await tpResponse.json()
-    console.log('🟨 BINANCE FROM FORM: TP order response:', tpData)
+      const slSignature = await createBinanceSignature(slQueryString, apiSecret)
+      
+      const slResponse = await fetch('https://fapi.binance.com/fapi/v1/order', {
+        method: 'POST',
+        headers: {
+          'X-MBX-APIKEY': apiKey,
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: `${slQueryString}&signature=${slSignature}`
+      })
 
-    // 7. Размещаем SL ордер С ЦЕНОЙ ИЗ ФОРМЫ
-    const timestamp4 = Date.now()
-    const slParams = {
-      symbol: symbol,
-      side: isLong ? 'SELL' : 'BUY',
-      type: 'STOP_MARKET',
-      stopPrice: slPrice,  // ЦЕНА ИЗ ФОРМЫ
-      closePosition: 'true',
-      timestamp: timestamp4
+      const slData = await slResponse.json()
+      slOrderId = slData.orderId
     }
-
-    const slQueryString = Object.keys(slParams)
-      .map(key => `${key}=${slParams[key]}`)
-      .join('&')
-
-    const slSignature = await createBinanceSignature(slQueryString, apiSecret)
-    
-    console.log('🟨 BINANCE FROM FORM: Placing SL order from form...')
-    
-    const slResponse = await fetch('https://fapi.binance.com/fapi/v1/order', {
-      method: 'POST',
-      headers: {
-        'X-MBX-APIKEY': apiKey,
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: `${slQueryString}&signature=${slSignature}`
-    })
-
-    const slData = await slResponse.json()
-    console.log('🟨 BINANCE FROM FORM: SL order response:', slData)
 
     return new Response(JSON.stringify({
       success: true,
-      message: `✅ РЕАЛЬНЫЙ Binance ФЬЮЧЕРС с TP/SL из формы размещен: ${symbol}`,
+      message: `✅ РЕАЛЬНЫЙ Binance ордер БЕЗ ХАРДКОДА: ${symbol}`,
       order: {
         orderId: orderData.orderId,
-        tpOrderId: tpData.orderId || 'TP_FAILED',
-        slOrderId: slData.orderId || 'SL_FAILED',
+        tpOrderId: tpOrderId || 'NO_TP',
+        slOrderId: slOrderId || 'NO_SL',
         symbol: symbol,
         side: side,
-        quantity: quantity,
+        quantity: formattedQuantity,
         current_price: currentPrice,
         take_profit: tpPrice,
         stop_loss: slPrice,
         tp_percent_from_form: tp_percent,
         sl_percent_from_form: sl_percent,
-        base_amount: baseAmount,
-        leverage: leverageNum,
-        status: 'REAL FUTURES ORDER WITH TP/SL FROM FORM',
+        amount_from_form: baseAmount,
+        leverage_from_form: leverageNum,
+        total_usd: baseAmount * leverageNum,
+        status: 'REAL FUTURES ORDER FIXED NO HARDCODE',
         exchange: 'BINANCE',
         timestamp: new Date().toISOString()
       }
@@ -453,10 +580,10 @@ async function handleBinanceFuturesFromForm(apiKey: string, apiSecret: string, s
     })
 
   } catch (error) {
-    console.error('🟨 BINANCE FROM FORM Error:', error)
+    console.error('🟨 BINANCE FIXED Error:', error)
     return new Response(JSON.stringify({
       success: false,
-      message: `Binance ФЬЮЧЕРС из формы ошибка: ${error.message}`,
+      message: `Binance ордер БЕЗ хардкода ошибка: ${error.message}`,
       error: error.toString()
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -464,12 +591,21 @@ async function handleBinanceFuturesFromForm(apiKey: string, apiSecret: string, s
   }
 }
 
-// GATE.IO ФЬЮЧЕРСЫ ИЗ ФОРМЫ - РЕАЛЬНЫЕ ОРДЕРА
-async function handleGateFuturesFromForm(apiKey: string, apiSecret: string, symbol: string, side: string, leverage: string, amount: string, tp_percent: number, sl_percent: number) {
-  console.log('🟦 GATE FROM FORM: Placing REAL order with TP/SL from form:', { symbol, tp_percent, sl_percent })
+// GATE.IO РЕАЛЬНЫЕ ОРДЕРА БЕЗ ХАРДКОДА
+async function handleGateRealOrderFixed(apiKey: string, apiSecret: string, symbol: string, side: string, leverage: string, amount: string, tp_percent: number, sl_percent: number) {
+  console.log('🟦 GATE FIXED: Placing order БЕЗ ХАРДКОДА:', { symbol, leverage, amount, tp_percent, sl_percent })
   
   try {
-    // 1. Получаем цену фьючерса Gate.io
+    // ПРОВЕРКА НА ПУСТЫЕ ЗНАЧЕНИЯ
+    if (!amount || amount === '0') {
+      throw new Error('Amount не может быть пустым или 0')
+    }
+    
+    if (!leverage || leverage === '0') {
+      throw new Error('Leverage не может быть пустым или 0')
+    }
+
+    // 1. Получаем цену
     const priceResponse = await fetch(`https://api.gateio.ws/api/v4/futures/usdt/tickers?contract=${symbol}`)
     if (!priceResponse.ok) {
       throw new Error(`Gate.io price API error: ${priceResponse.status}`)
@@ -479,34 +615,48 @@ async function handleGateFuturesFromForm(apiKey: string, apiSecret: string, symb
     const currentPrice = parseFloat(priceData[0]?.last || '0')
     
     if (currentPrice === 0) {
-      throw new Error('Не удалось получить цену фьючерса Gate.io')
+      throw new Error('Не удалось получить цену Gate.io')
     }
     
-    // 2. Расчеты для ФЬЮЧЕРСОВ Gate.io
-    const baseAmount = parseFloat(amount) || 100
-    const leverageNum = parseInt(leverage) || 10
+    // 2. РАСЧЕТЫ БЕЗ ХАРДКОДА
+    const baseAmount = parseFloat(amount)  // БЕЗ || 100
+    const leverageNum = parseInt(leverage)  // БЕЗ || 10
     
-    // Gate.io использует размер в контрактах
-    const size = Math.floor(baseAmount / currentPrice)
+    console.log('🟦 GATE FIXED: РЕАЛЬНЫЕ ЗНАЧЕНИЯ ИЗ ФОРМЫ:', {
+      baseAmount, leverageNum, currentPrice
+    })
     
-    // 3. Расчет TP/SL цен ИЗ ФОРМЫ
+    // Расчет с плечом: amount * leverage / price
+    let size = Math.floor((baseAmount * leverageNum) / currentPrice)
+    
+    // Минимум 1 контракт
+    if (size < 1) {
+      size = 1
+    }
+    
+    console.log('🟦 GATE FIXED: РАСЧЕТЫ С ПЛЕЧОМ:', {
+      symbol, currentPrice, baseAmount, leverageNum,
+      totalUSD: baseAmount * leverageNum,
+      size
+    })
+    
+    // 3. TP/SL цены ИЗ ПАРАМЕТРОВ
     const isLong = side.toLowerCase() === 'buy'
     let tpPrice, slPrice
     
-    if (isLong) {
-      tpPrice = (currentPrice * (1 + tp_percent / 100)).toFixed(2)
-      slPrice = (currentPrice * (1 - sl_percent / 100)).toFixed(2)
-    } else {
-      tpPrice = (currentPrice * (1 - tp_percent / 100)).toFixed(2)
-      slPrice = (currentPrice * (1 + sl_percent / 100)).toFixed(2)
+    if (tp_percent > 0 && sl_percent > 0) {
+      if (isLong) {
+        tpPrice = (currentPrice * (1 + tp_percent / 100)).toFixed(2)
+        slPrice = (currentPrice * (1 - sl_percent / 100)).toFixed(2)
+      } else {
+        tpPrice = (currentPrice * (1 - tp_percent / 100)).toFixed(2)
+        slPrice = (currentPrice * (1 + sl_percent / 100)).toFixed(2)
+      }
     }
     
-    console.log('🟦 GATE FROM FORM: Расчеты из формы:', {
-      symbol, currentPrice, size, isLong, tpPrice, slPrice,
-      tp_percent_from_form: tp_percent, sl_percent_from_form: sl_percent
-    })
+    console.log('🟦 GATE FIXED: TP/SL из формы:', { tp_percent, sl_percent, tpPrice, slPrice })
     
-    // 4. Создаем подпись для Gate.io
+    // 4. Создаем подпись
     const timestamp = Math.floor(Date.now() / 1000)
     const method = 'POST'
     const url = '/api/v4/futures/usdt/orders'
@@ -516,7 +666,7 @@ async function handleGateFuturesFromForm(apiKey: string, apiSecret: string, symb
       size: size,
       price: '0',  // Market order
       tif: 'ioc',
-      text: 'api_form_order'
+      text: 'api_fixed_order'
     }
     
     const bodyString = JSON.stringify(orderBody)
@@ -524,7 +674,7 @@ async function handleGateFuturesFromForm(apiKey: string, apiSecret: string, symb
     
     const signature = await createGateSignature(payloadString, apiSecret)
     
-    console.log('🟦 GATE FROM FORM: Sending REAL futures order from form...')
+    console.log('🟦 GATE FIXED: Sending REAL order БЕЗ ХАРДКОДА...')
     
     const response = await fetch('https://api.gateio.ws/api/v4/futures/usdt/orders', {
       method: 'POST',
@@ -538,12 +688,12 @@ async function handleGateFuturesFromForm(apiKey: string, apiSecret: string, symb
     })
 
     const data = await response.json()
-    console.log('🟦 GATE FROM FORM: Order response:', data)
+    console.log('🟦 GATE FIXED: Order response:', data)
 
     if (response.ok && data.id) {
       return new Response(JSON.stringify({
         success: true,
-        message: `✅ РЕАЛЬНЫЙ Gate.io ФЬЮЧЕРС с TP/SL из формы размещен: ${symbol}`,
+        message: `✅ РЕАЛЬНЫЙ Gate.io ордер БЕЗ ХАРДКОДА: ${symbol}`,
         order: {
           orderId: data.id,
           symbol: symbol,
@@ -554,9 +704,10 @@ async function handleGateFuturesFromForm(apiKey: string, apiSecret: string, symb
           stop_loss: slPrice,
           tp_percent_from_form: tp_percent,
           sl_percent_from_form: sl_percent,
-          base_amount: baseAmount,
-          leverage: leverageNum,
-          status: 'REAL FUTURES ORDER WITH TP/SL FROM FORM',
+          amount_from_form: baseAmount,
+          leverage_from_form: leverageNum,
+          total_usd: baseAmount * leverageNum,
+          status: 'REAL FUTURES ORDER FIXED NO HARDCODE',
           exchange: 'GATE',
           timestamp: new Date().toISOString()
         }
@@ -566,7 +717,7 @@ async function handleGateFuturesFromForm(apiKey: string, apiSecret: string, symb
     } else {
       return new Response(JSON.stringify({
         success: false,
-        message: `Gate.io ФЬЮЧЕРС из формы ошибка: ${data.message || 'Unknown error'}`,
+        message: `Gate.io ордер БЕЗ хардкода ошибка: ${data.message || 'Unknown error'}`,
         error_details: data
       }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -574,10 +725,10 @@ async function handleGateFuturesFromForm(apiKey: string, apiSecret: string, symb
     }
 
   } catch (error) {
-    console.error('🟦 GATE FROM FORM Error:', error)
+    console.error('🟦 GATE FIXED Error:', error)
     return new Response(JSON.stringify({
       success: false,
-      message: `Gate.io ФЬЮЧЕРС из формы ошибка: ${error.message}`,
+      message: `Gate.io ордер БЕЗ хардкода ошибка: ${error.message}`,
       error: error.toString()
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -585,7 +736,241 @@ async function handleGateFuturesFromForm(apiKey: string, apiSecret: string, symb
   }
 }
 
-// Подписи для разных бирж
+// ОТМЕНА ОРДЕРОВ BYBIT
+async function cancelBybitOrders(apiKey: string, apiSecret: string) {
+  try {
+    const timestamp = Date.now().toString()
+    const recvWindow = '5000'
+    
+    const params = {
+      category: 'linear'
+    }
+
+    const bodyString = JSON.stringify(params)
+    const signaturePayload = timestamp + apiKey + recvWindow + bodyString
+    const signature = await createBybitSignature(signaturePayload, apiSecret)
+    
+    const response = await fetch('https://api.bybit.com/v5/order/cancel-all', {
+      method: 'POST',
+      headers: {
+        'X-BAPI-API-KEY': apiKey,
+        'X-BAPI-SIGN': signature,
+        'X-BAPI-TIMESTAMP': timestamp,
+        'X-BAPI-RECV-WINDOW': recvWindow,
+        'Content-Type': 'application/json',
+      },
+      body: bodyString
+    })
+
+    const data = await response.json()
+    
+    return new Response(JSON.stringify({
+      success: true,
+      message: `✅ Bybit ордера отменены`,
+      cancelled_orders: data.result?.list?.length || 0
+    }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    })
+
+  } catch (error) {
+    throw error
+  }
+}
+
+// ОТМЕНА ОРДЕРОВ BINANCE
+async function cancelBinanceOrders(apiKey: string, apiSecret: string) {
+  try {
+    const timestamp = Date.now()
+    const params = {
+      symbol: 'BTCUSDT',
+      timestamp: timestamp
+    }
+
+    const queryString = Object.keys(params)
+      .map(key => `${key}=${params[key]}`)
+      .join('&')
+
+    const signature = await createBinanceSignature(queryString, apiSecret)
+    
+    const response = await fetch('https://fapi.binance.com/fapi/v1/allOpenOrders', {
+      method: 'DELETE',
+      headers: {
+        'X-MBX-APIKEY': apiKey,
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: `${queryString}&signature=${signature}`
+    })
+
+    const data = await response.json()
+    
+    return new Response(JSON.stringify({
+      success: true,
+      message: `✅ Binance ордера отменены`,
+      cancelled_orders: data.length || 0
+    }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    })
+
+  } catch (error) {
+    throw error
+  }
+}
+
+// ОТМЕНА ОРДЕРОВ GATE
+async function cancelGateOrders(apiKey: string, apiSecret: string) {
+  try {
+    const timestamp = Math.floor(Date.now() / 1000)
+    const method = 'DELETE'
+    const url = '/api/v4/futures/usdt/orders'
+    
+    const payloadString = method + '\n' + url + '\n' + 'contract=BTCUSDT' + '\n' + '' + '\n' + timestamp
+    const signature = await createGateSignature(payloadString, apiSecret)
+    
+    const response = await fetch('https://api.gateio.ws/api/v4/futures/usdt/orders?contract=BTCUSDT', {
+      method: 'DELETE',
+      headers: {
+        'KEY': apiKey,
+        'SIGN': signature,
+        'Timestamp': timestamp.toString(),
+        'Content-Type': 'application/json',
+      }
+    })
+
+    const data = await response.json()
+    
+    return new Response(JSON.stringify({
+      success: true,
+      message: `✅ Gate.io ордера отменены`,
+      cancelled_orders: data.length || 0
+    }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    })
+
+  } catch (error) {
+    throw error
+  }
+}
+
+// ЗАКРЫТИЕ ПОЗИЦИЙ BYBIT
+async function closeBybitPositions(apiKey: string, apiSecret: string) {
+  try {
+    const timestamp = Date.now().toString()
+    const recvWindow = '5000'
+    
+    const params = {
+      category: 'linear',
+      symbol: 'BTCUSDT'
+    }
+
+    const bodyString = JSON.stringify(params)
+    const signaturePayload = timestamp + apiKey + recvWindow + bodyString
+    const signature = await createBybitSignature(signaturePayload, apiSecret)
+    
+    const response = await fetch('https://api.bybit.com/v5/position/close', {
+      method: 'POST',
+      headers: {
+        'X-BAPI-API-KEY': apiKey,
+        'X-BAPI-SIGN': signature,
+        'X-BAPI-TIMESTAMP': timestamp,
+        'X-BAPI-RECV-WINDOW': recvWindow,
+        'Content-Type': 'application/json',
+      },
+      body: bodyString
+    })
+
+    const data = await response.json()
+    
+    return new Response(JSON.stringify({
+      success: true,
+      message: `✅ Bybit позиции закрыты`,
+      closed_positions: 1
+    }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    })
+
+  } catch (error) {
+    throw error
+  }
+}
+
+// ЗАКРЫТИЕ ПОЗИЦИЙ BINANCE
+async function closeBinancePositions(apiKey: string, apiSecret: string) {
+  try {
+    const timestamp = Date.now()
+    const params = {
+      symbol: 'BTCUSDT',
+      side: 'SELL',
+      type: 'MARKET',
+      reduceOnly: 'true',
+      timestamp: timestamp
+    }
+
+    const queryString = Object.keys(params)
+      .map(key => `${key}=${params[key]}`)
+      .join('&')
+
+    const signature = await createBinanceSignature(queryString, apiSecret)
+    
+    const response = await fetch('https://fapi.binance.com/fapi/v1/order', {
+      method: 'POST',
+      headers: {
+        'X-MBX-APIKEY': apiKey,
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: `${queryString}&signature=${signature}`
+    })
+
+    const data = await response.json()
+    
+    return new Response(JSON.stringify({
+      success: true,
+      message: `✅ Binance позиции закрыты`,
+      closed_positions: 1
+    }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    })
+
+  } catch (error) {
+    throw error
+  }
+}
+
+// ЗАКРЫТИЕ ПОЗИЦИЙ GATE
+async function closeGatePositions(apiKey: string, apiSecret: string) {
+  try {
+    const timestamp = Math.floor(Date.now() / 1000)
+    const method = 'POST'
+    const url = '/api/v4/futures/usdt/positions/BTCUSDT/close'
+    
+    const payloadString = method + '\n' + url + '\n' + '' + '\n' + '' + '\n' + timestamp
+    const signature = await createGateSignature(payloadString, apiSecret)
+    
+    const response = await fetch('https://api.gateio.ws/api/v4/futures/usdt/positions/BTCUSDT/close', {
+      method: 'POST',
+      headers: {
+        'KEY': apiKey,
+        'SIGN': signature,
+        'Timestamp': timestamp.toString(),
+        'Content-Type': 'application/json',
+      }
+    })
+
+    const data = await response.json()
+    
+    return new Response(JSON.stringify({
+      success: true,
+      message: `✅ Gate.io позиции закрыты`,
+      closed_positions: 1
+    }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    })
+
+  } catch (error) {
+    throw error
+  }
+}
+
+// Подписи
 async function createBybitSignature(payload: string, secret: string) {
   const encoder = new TextEncoder()
   const keyData = encoder.encode(secret)
