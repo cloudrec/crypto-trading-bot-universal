@@ -4,12 +4,14 @@ import { supabase } from '@/integrations/supabase/client';
 const TradingTest = () => {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
-  const [formData, setFormData] = useState({
+const [formData, setFormData] = useState({
     exchange: 'bybit',
     symbol: 'SUPERUSDT',
     side: 'Buy',
     leverage: '10',
-    amount: '100'
+    amount: '100',
+    tp_percent: '2',
+    sl_percent: '1'
   });
 
   const exchanges = [
@@ -30,7 +32,7 @@ const TradingTest = () => {
     try {
       console.log('🚀 Отправляем запрос:', formData);
       
-      const { data, error } = await supabase.functions.invoke('working_trading_2025_11_13_01_40', {
+const { data, error } = await supabase.functions.invoke('universal_trading_2025_11_13_01_35', {
         body: formData
       });
       
@@ -119,7 +121,7 @@ const TradingTest = () => {
             />
           </div>
           
-          <div className="md:col-span-2">
+<div>
             <label className="block text-sm font-medium mb-2">Сумма (USDT):</label>
             <input
               type="number"
@@ -128,6 +130,32 @@ const TradingTest = () => {
               className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg"
               min="1"
               step="0.01"
+            />
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium mb-2">Take Profit (%):</label>
+            <input
+              type="number"
+              value={formData.tp_percent}
+              onChange={(e) => handleInputChange('tp_percent', e.target.value)}
+              className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg"
+              min="0.1"
+              step="0.1"
+              placeholder="2"
+            />
+          </div>
+          
+          <div>
+            <label className="block text-sm font-medium mb-2">Stop Loss (%):</label>
+            <input
+              type="number"
+              value={formData.sl_percent}
+              onChange={(e) => handleInputChange('sl_percent', e.target.value)}
+              className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg"
+              min="0.1"
+              step="0.1"
+              placeholder="1"
             />
           </div>
         </div>
