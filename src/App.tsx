@@ -1,3 +1,4 @@
+import { Toaster } from "@/components/ui/toaster";
 import React from 'react';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import AuthForm from '@/components/AuthForm';
@@ -28,6 +29,7 @@ function App() {
   return (
     <AuthProvider>
       <AuthenticatedApp />
+      <Toaster />
     </AuthProvider>
   );
 }

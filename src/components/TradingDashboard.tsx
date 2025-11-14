@@ -15,6 +15,7 @@ import ArbitrageTab from '@/components/tabs/ArbitrageTab';
 import TriangularArbitrageTab from '@/components/tabs/TriangularArbitrageTab';
 import SubscriptionTab from '@/components/tabs/SubscriptionTab';
 import LogsTab from '@/components/tabs/LogsTab';
+import AdminPanel from "@/components/tabs/AdminPanel";
 
 const TradingDashboard = () => {
   const { user, signOut } = useAuth();
@@ -182,6 +183,7 @@ const TradingDashboard = () => {
             <TabsTrigger value="logs" className="data-[state=active]:bg-gray-700">
               📝 Логи
             </TabsTrigger>
+            <TabsTrigger value="admin" className="data-[state=active]:bg-gray-700">              👨‍💼 Админка            </TabsTrigger>
           </TabsList>
 
           {/* Вкладка Главная */}
@@ -223,6 +225,7 @@ const TradingDashboard = () => {
           <TabsContent value="logs">
             <LogsTab />
           </TabsContent>
+{/* Вкладка Админка */}          <TabsContent value="admin">            <AdminPanel />          </TabsContent>
         </Tabs>
       </div>
     </div>

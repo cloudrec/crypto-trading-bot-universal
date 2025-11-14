@@ -93,7 +93,7 @@ const TradingTab = () => {
     symbol: "SUPERUSDT",
     side: 'Buy',
     leverage: "10",
-    amount: "200",
+    amount: "100",
     stopLoss: '2',
     takeProfit: '5',
     delayMs: '1000'
@@ -275,9 +275,8 @@ const TradingTab = () => {
       for (const exchange of exchanges) {
         try {
       console.log("📡 ОТПРАВЛЯЕМ ЗАПРОС К EDGE FUNCTION");
-      console.log("🎯 Параметры:", { exchange: "bybit", symbol: orderForm.symbol, leverage: orderForm.leverage, amount: orderForm.amount });
-      console.log("🔍 USER ID:", user?.id);
-          const { data, error } = await supabase.functions.invoke(getFunctionName(orderForm.exchange), {
+      console.log("🎯 Параметры:", { exchange: orderForm.exchange, symbol: orderForm.symbol, leverage: orderForm.leverage, amount: orderForm.amount });
+          const { data, error } = await supabase.functions.invoke('bybit_fixed_quantity_2025_11_13_23_50', {
             body: { action: 'check_balance', exchange: exchange.id }
           });
 
@@ -299,30 +298,17 @@ const TradingTab = () => {
   };
 
   // Размещение тестового ордера с задержкой
-  // Функция выбора Edge Function по бирже
-  const getFunctionName = (exchange: string) => {
-    switch (exchange.toLowerCase()) {
-      case "bybit":
-        return "bybit_fixed_quantity_2025_11_13_23_50";
-      case "binance":
-        return "bybit_fixed_quantity_2025_11_13_23_50";
-      default:
-        return "bybit_fixed_quantity_2025_11_13_23_50";
-    }
-  };
-
   const placeTestOrder = async () => {
     setLoading(prev => ({ ...prev, order: true }));
     
     console.log("🚀 КНОПКА НАЖАТА! placeTestOrder вызвана");
     try {
       console.log("📡 ОТПРАВЛЯЕМ ЗАПРОС К EDGE FUNCTION");
-      console.log("🎯 Параметры:", { exchange: "bybit", symbol: orderForm.symbol, leverage: orderForm.leverage, amount: orderForm.amount });
-      console.log("🔍 USER ID:", user?.id);
-      const { data, error } = await supabase.functions.invoke(getFunctionName(orderForm.exchange), {
+      console.log("🎯 Параметры:", { exchange: orderForm.exchange, symbol: orderForm.symbol, leverage: orderForm.leverage, amount: orderForm.amount });
+      const { data, error } = await supabase.functions.invoke('bybit_fixed_quantity_2025_11_13_23_50', {
         body: { 
-          action: orderForm.exchange.toLowerCase() === "binance" ? "place_order_with_tp_sl" : "place_test_order", 
-          exchange: orderForm.exchange.toLowerCase(),
+          action: 'place_test_order', 
+          exchange: orderForm.exchange,
           symbol: orderForm.symbol,
           side: orderForm.side,
           leverage: orderForm.leverage,
@@ -349,7 +335,7 @@ const TradingTab = () => {
         console.log("🎯 ВЫЗЫВАЕМ TOAST!", { title: "Успех", description: data.message });
         toast({
           title: "Ошибка",
-          description: `Ошибка ордера: ${data?.error || "Неизвестная ошибка"}`,
+          description: `Ошибка ордера: ${data.error}`,
           variant: "destructive",
         });
       }
