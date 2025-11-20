@@ -6,641 +6,353 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 import { toast } from '@/hooks/use-toast';
-import { 
-  Play, 
-  Square, 
-  RefreshCw,
-  DollarSign,
-  Clock,
-  Settings,
-  TestTube,
-  X,
-  Power,
-  TrendingDown,
-  TrendingUp,
-  AlertCircle
-} from 'lucide-react';
-
-interface FundingPosition {
-  id: string;
-  exchange: string;
-  symbol: string;
-  side: string;
-  size: number;
-  entry_price: number;
-  leverage: number;
-  funding_received: number;
-  unrealized_pnl: number;
-  status: string;
-  opened_at: string;
-  next_funding_time: string;
-}
-
-interface FundingRate {
-  exchange: string;
-  symbol: string;
-  funding_rate: number;
-  next_funding_time: string;
-  mark_price: number;
-}
 
 const FundingBot = () => {
   const { user } = useAuth();
-  const [positions, setPositions] = useState<FundingPosition[]>([]);
-  const [fundingRates, setFundingRates] = useState<FundingRate[]>([]);
-  const [balance, setBalance] = useState<any>(null);
-  const [loading, setLoading] = useState(false);
-  const [botRunning, setBotRunning] = useState(false);
-
-  // Настройки бота
+  const [opportunities, setOpportunities] = useState([]);
+  const [stats, setStats] = useState(null);
   const [settings, setSettings] = useState({
-    exchange: 'bybit',
-    symbol: 'BTCUSDT',
-    order_amount_usd: 100,
-    leverage: 1,
-    take_profit_percent: 0.5,
-    stop_loss_percent: 1.0,
-    delay_ms: 5000,
-    order_timeout_minutes: 60,
-    telegram_enabled: false
+    min_funding_rate: "0.3",
+    max_funding_rate: "10.0",
+    scan_interval_minutes: 60,
+    telegram_notifications: true,
+    auto_scan_enabled: true,
+    min_volume_24h: 1000000
   });
+  const [loading, setLoading] = useState(false);
+  const [scanning, setScanning] = useState(false);
+  const [timeToNextScan, setTimeToNextScan] = useState('');
 
-  // Загрузка данных при монтировании
   useEffect(() => {
-    loadFundingData();
     loadSettings();
-    const interval = setInterval(loadFundingData, 30000); // Обновляем каждые 30 секунд
+    loadLatestResults();
+    updateNextScanTime();
+    
+    const interval = setInterval(() => {
+      loadLatestResults();
+      updateNextScanTime();
+    }, 30000);
+    
     return () => clearInterval(interval);
   }, []);
 
-  const loadFundingData = async () => {
-    try {
-      // Загружаем позиции
-      const { data: positionsData, error: posError } = await supabase.functions.invoke('funding_arbitrage_bot_2025_11_12_05_20', {
-        body: { action: 'get_funding_positions' }
-      });
-
-      if (posError) throw posError;
-      if (positionsData.success) {
-        setPositions(positionsData.positions);
-      }
-
-      // Загружаем ставки фандинга
-      const { data: ratesData, error: ratesError } = await supabase.functions.invoke('funding_arbitrage_bot_2025_11_12_05_20', {
-        body: { action: 'check_funding_rates', exchange: settings.exchange }
-      });
-
-      if (ratesError) throw ratesError;
-      if (ratesData.success) {
-        setFundingRates(ratesData.funding_rates);
-      }
-    } catch (error) {
-      console.error('Ошибка загрузки данных фандинга:', error);
+  const updateNextScanTime = () => {
+    const now = new Date();
+    const nextHour = new Date(now);
+    nextHour.setHours(now.getHours() + 1, 0, 0, 0);
+    const scanTime = new Date(nextHour.getTime() - 20 * 60 * 1000);
+    
+    if (now > scanTime) {
+      scanTime.setHours(scanTime.getHours() + 1);
     }
+    
+    const diff = scanTime.getTime() - now.getTime();
+    const minutes = Math.floor(diff / 60000);
+    setTimeToNextScan(minutes + ' мин');
   };
 
   const loadSettings = async () => {
     try {
-      const { data, error } = await supabase.functions.invoke('funding_arbitrage_bot_2025_11_12_05_20', {
-        body: { action: 'get_funding_settings' }
+      const { data, error } = await supabase.functions.invoke('combat_funding_scanner_2025_11_17_15_30', {
+        body: { action: 'get_settings' }
       });
-
       if (error) throw error;
       if (data.success && data.settings) {
-        setSettings(prev => ({ ...prev, ...data.settings }));
+        setSettings(data.settings);
       }
     } catch (error) {
       console.error('Ошибка загрузки настроек:', error);
     }
   };
 
+  const loadLatestResults = async () => {
+    try {
+      const { data, error } = await supabase.functions.invoke('combat_funding_scanner_2025_11_17_15_30', {
+        body: { action: 'get_latest_results' }
+      });
+      if (error) throw error;
+      if (data.success) {
+        setOpportunities(data.opportunities || []);
+        setStats(data.stats);
+      }
+    } catch (error) {
+      console.error('Ошибка загрузки результатов:', error);
+    }
+  };
+
   const saveSettings = async () => {
     try {
-      const { data, error } = await supabase.functions.invoke('funding_arbitrage_bot_2025_11_12_05_20', {
-        body: { action: 'update_funding_settings', ...settings }
+      setLoading(true);
+      const { data, error } = await supabase.functions.invoke('combat_funding_scanner_2025_11_17_15_30', {
+        body: { 
+          action: 'update_settings',
+          user_id: user?.id || "demo-user",
+          settings: settings
+        }
       });
+      if (error) throw error;
+      toast({ title: 'Настройки сохранены', description: 'Параметры сканера обновлены в базе данных' });
+    } catch (error) {
+      toast({ title: 'Ошибка сохранения', description: error.message, variant: 'destructive' });
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  const startManualScan = async () => {
+    try {
+      setScanning(true);
+      toast({ title: 'Запуск сканирования фандинга', description: 'Сканируем 8 бирж на фандинг возможности...' });
+      
+      const { data, error } = await supabase.functions.invoke('combat_funding_scanner_2025_11_17_15_30', {
+        body: { action: 'scan_funding', settings, scan_type: 'manual' }
+      });
+      
       if (error) throw error;
       
-      toast({
-        title: "✅ Настройки сохранены",
-        description: "Настройки фандинг-бота обновлены",
-      });
-    } catch (error: any) {
-      toast({
-        title: "Ошибка сохранения",
-        description: error.message,
-        variant: "destructive",
-      });
-    }
-  };
-
-  const startFundingBot = async () => {
-    setLoading(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('funding_arbitrage_bot_2025_11_12_05_20', {
-        body: { action: 'start_funding_bot', ...settings }
-      });
-
-      if (error) throw error;
-
       if (data.success) {
-        setBotRunning(true);
-        toast({
-          title: "🤖 Фандинг-бот запущен",
-          description: data.message,
+        setOpportunities(data.opportunities || []);
+        setStats(data.stats);
+        const oppCount = data.opportunities ? data.opportunities.length : 0;
+        
+        toast({ 
+          title: 'Сканирование завершено', 
+          description: `Найдено ${oppCount} возможностей на ${data.stats?.total_exchanges || 0} биржах`
         });
-        await loadFundingData();
+        await loadLatestResults();
       }
-    } catch (error: any) {
-      toast({
-        title: "Ошибка запуска",
-        description: error.message,
-        variant: "destructive",
-      });
+    } catch (error) {
+      toast({ title: 'Ошибка сканирования', description: error.message, variant: 'destructive' });
     } finally {
-      setLoading(false);
+      setScanning(false);
     }
   };
 
-  const stopFundingBot = async () => {
-    try {
-      const { data, error } = await supabase.functions.invoke('funding_arbitrage_bot_2025_11_12_05_20', {
-        body: { action: 'stop_funding_bot' }
-      });
-
-      if (error) throw error;
-
-      setBotRunning(false);
-      toast({
-        title: "⏹️ Фандинг-бот остановлен",
-        description: "Бот успешно остановлен",
-      });
-    } catch (error: any) {
-      toast({
-        title: "Ошибка остановки",
-        description: error.message,
-        variant: "destructive",
-      });
-    }
+  const getExchangeEmoji = (exchange) => {
+    const emojis = {
+      'Binance': '🟡',
+      'Bybit': '🟠', 
+      'OKX': '🔵',
+      'Gate.io': '🟢',
+      'KuCoin': '🟣',
+      'Huobi': '🔴',
+      'MEXC': '🟤',
+      'Bitget': '⚫'
+    };
+    return emojis[exchange] || '⚪';
   };
 
-  const checkBalance = async () => {
-    setLoading(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('funding_arbitrage_bot_2025_11_12_05_20', {
-        body: { action: 'check_balance', exchange: settings.exchange }
-      });
-
-      if (error) throw error;
-
-      if (data.success) {
-        setBalance(data.balance);
-        toast({
-          title: "💰 Баланс обновлен",
-          description: `${settings.exchange.toUpperCase()}: $${data.balance.USDT.available.toFixed(2)} доступно`,
-        });
-      }
-    } catch (error: any) {
-      toast({
-        title: "Ошибка проверки баланса",
-        description: error.message,
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const testOrder = async () => {
-    setLoading(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('funding_arbitrage_bot_2025_11_12_05_20', {
-        body: { action: 'test_order_without_funding', ...settings }
-      });
-
-      if (error) throw error;
-
-      if (data.success) {
-        toast({
-          title: "🧪 Тестовый ордер размещен",
-          description: "Ордер успешно размещен в тестовом режиме",
-        });
-        await loadFundingData();
-      }
-    } catch (error: any) {
-      toast({
-        title: "Ошибка тестового ордера",
-        description: error.message,
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const cancelAllOrders = async () => {
-    setLoading(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('funding_arbitrage_bot_2025_11_12_05_20', {
-        body: { action: 'cancel_all_orders', exchange: settings.exchange }
-      });
-
-      if (error) throw error;
-
-      toast({
-        title: "❌ Ордера отменены",
-        description: `Все ордера на ${settings.exchange.toUpperCase()} отменены`,
-      });
-    } catch (error: any) {
-      toast({
-        title: "Ошибка отмены ордеров",
-        description: error.message,
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const closeAllPositions = async () => {
-    setLoading(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('funding_arbitrage_bot_2025_11_12_05_20', {
-        body: { action: 'close_all_positions', exchange: settings.exchange }
-      });
-
-      if (error) throw error;
-
-      toast({
-        title: "🔒 Позиции закрыты",
-        description: `Все позиции на ${settings.exchange.toUpperCase()} закрыты`,
-      });
-      await loadFundingData();
-    } catch (error: any) {
-      toast({
-        title: "Ошибка закрытия позиций",
-        description: error.message,
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const getNextFundingTime = () => {
-    if (fundingRates.length > 0) {
-      return new Date(fundingRates[0].next_funding_time);
-    }
-    
-    const now = new Date();
-    const currentHour = now.getUTCHours();
-    const fundingHours = [0, 8, 16];
-    let nextHour = fundingHours.find(hour => hour > currentHour) || fundingHours[0];
-    
-    const nextFunding = new Date(now);
-    nextFunding.setUTCHours(nextHour, 0, 0, 0);
-    
-    if (nextHour <= currentHour) {
-      nextFunding.setUTCDate(nextFunding.getUTCDate() + 1);
-    }
-    
-    return nextFunding;
-  };
-
-  const getTimeToFunding = () => {
-    const nextFunding = getNextFundingTime();
-    const now = new Date();
-    const diff = nextFunding.getTime() - now.getTime();
-    
-    const hours = Math.floor(diff / (1000 * 60 * 60));
-    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-    
-    return `${hours}ч ${minutes}м`;
+  const getFundingEmoji = (rate) => {
+    return rate > 0 ? '🟢' : '🔴';
   };
 
   return (
-    <div className="space-y-6">
-      {/* Управление ботом */}
+    <div className="space-y-6 p-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-white">🔍 Сканер Фандингов</h1>
+          <p className="text-gray-400 mt-1">8 бирж | Автосканирование каждый час за 20 мин до фандинга</p>
+        </div>
+        <div className="flex space-x-3">
+          <Button onClick={startManualScan} disabled={scanning} className="bg-green-600 hover:bg-green-700">
+            {scanning ? 'Сканирование...' : '🚀 ЗАПУСТИТЬ СКАНИРОВАНИЕ'}
+          </Button>
+          <Button onClick={loadLatestResults} variant="outline" className="border-gray-600">
+            🔄 Обновить
+          </Button>
+        </div>
+      </div>
+
       <Card className="bg-gray-800 border-gray-700">
         <CardHeader>
-          <CardTitle className="text-white flex items-center">
-            <Power className="h-5 w-5 mr-2" />
-            🤖 Фандинг-Арбитраж Бот
-          </CardTitle>
+          <CardTitle className="text-white">⏰ Автосканирование (каждый час за 20 мин до фандинга)</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Статус и управление */}
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <span className="text-gray-300">Статус бота:</span>
-                <Badge variant={botRunning ? "default" : "secondary"}>
-                  {botRunning ? "🟢 Активен" : "🔴 Остановлен"}
-                </Badge>
-              </div>
-              
-              <div className="flex items-center justify-between">
-                <span className="text-gray-300">Следующий фандинг:</span>
-                <span className="text-white font-mono text-sm">
-                  {getTimeToFunding()}
-                </span>
-              </div>
-
-              <div className="flex space-x-2">
-                <Button
-                  onClick={botRunning ? stopFundingBot : startFundingBot}
-                  disabled={loading}
-                  className={botRunning ? "bg-red-600 hover:bg-red-700" : "bg-green-600 hover:bg-green-700"}
-                >
-                  {botRunning ? (
-                    <>
-                      <Square className="h-4 w-4 mr-2" />
-                      Остановить
-                    </>
-                  ) : (
-                    <>
-                      <Play className="h-4 w-4 mr-2" />
-                      Запустить
-                    </>
-                  )}
-                </Button>
-                
-                <Button
-                  onClick={checkBalance}
-                  disabled={loading}
-                  variant="outline"
-                  className="border-gray-600"
-                >
-                  <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-                  Баланс
-                </Button>
-              </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="text-center">
+              <div className="text-2xl font-bold text-blue-400">{timeToNextScan}</div>
+              <div className="text-xs text-gray-400">До следующего сканирования</div>
             </div>
-
-            {/* Баланс */}
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-white">💰 Баланс</h3>
-              {balance ? (
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">Доступно USDT:</span>
-                    <span className="text-green-400 font-mono">${balance.USDT.available.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">В позициях:</span>
-                    <span className="text-yellow-400 font-mono">${balance.positions_value.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">Нереализованный PnL:</span>
-                    <span className={`font-mono ${balance.unrealized_pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                      ${balance.unrealized_pnl.toFixed(2)}
-                    </span>
-                  </div>
-                </div>
-              ) : (
-                <p className="text-gray-400 text-sm">Нажмите "Баланс" для проверки</p>
-              )}
+            <div className="text-center">
+              <div className="text-2xl font-bold text-green-400">8/8</div>
+              <div className="text-xs text-gray-400">Активных бирж</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-purple-400">{opportunities.length}</div>
+              <div className="text-xs text-gray-400">Найдено возможностей</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-yellow-400">{settings.min_funding_rate}%</div>
+              <div className="text-xs text-gray-400">Минимальная ставка</div>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Настройки бота */}
+      {stats && (
+        <Card className="bg-gray-800 border-gray-700">
+          <CardHeader>
+            <CardTitle className="text-white">📊 Статистика последнего сканирования</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+              <div className="text-center">
+                <div className="text-2xl font-bold text-blue-400">{stats.total_exchanges || 0}/8</div>
+                <div className="text-xs text-gray-400">Биржи просканированы</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-purple-400">{stats.total_symbols || 0}</div>
+                <div className="text-xs text-gray-400">Символы проверены</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-green-400">{stats.positive_funding_count || 0}</div>
+                <div className="text-xs text-gray-400">🟢 Лонг фандинги</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-red-400">{stats.negative_funding_count || 0}</div>
+                <div className="text-xs text-gray-400">🔴 Шорт фандинги</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-yellow-400">{stats.scan_duration || 0}с</div>
+                <div className="text-xs text-gray-400">Время сканирования</div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <Card className="bg-gray-800 border-gray-700">
         <CardHeader>
-          <CardTitle className="text-white flex items-center">
-            <Settings className="h-5 w-5 mr-2" />
-            ⚙️ Настройки Бота
-          </CardTitle>
+          <CardTitle className="text-white">⚙️ Настройки сканера (редактируемые, сохраняются в БД)</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             <div>
-              <Label className="text-gray-300">Биржа</Label>
-              <Select value={settings.exchange} onValueChange={(value) => setSettings(prev => ({ ...prev, exchange: value }))}>
-                <SelectTrigger className="bg-gray-700 border-gray-600">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="bg-gray-700">
-                  <SelectItem value="bybit">Bybit</SelectItem>
-                  <SelectItem value="binance">Binance</SelectItem>
-                  <SelectItem value="gate">Gate.io</SelectItem>
-                  <SelectItem value="kucoin">KuCoin</SelectItem>
-                  <SelectItem value="okx">OKX</SelectItem>
-                  <SelectItem value="mexc">MEXC</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <Label className="text-gray-300">Символ</Label>
-              <Select value={settings.symbol} onValueChange={(value) => setSettings(prev => ({ ...prev, symbol: value }))}>
-                <SelectTrigger className="bg-gray-700 border-gray-600">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="bg-gray-700">
-                  <SelectItem value="BTCUSDT">BTCUSDT</SelectItem>
-                  <SelectItem value="ETHUSDT">ETHUSDT</SelectItem>
-                  <SelectItem value="BNBUSDT">BNBUSDT</SelectItem>
-                  <SelectItem value="ADAUSDT">ADAUSDT</SelectItem>
-                  <SelectItem value="DOTUSDT">DOTUSDT</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <Label className="text-gray-300">Сумма ордера (USD)</Label>
+              <Label className="text-gray-300">Минимальная ставка фандинга (%)</Label>
               <Input
-                type="number"
-                value={settings.order_amount_usd}
-                onChange={(e) => setSettings(prev => ({ ...prev, order_amount_usd: Number(e.target.value) }))}
-                className="bg-gray-700 border-gray-600"
-              />
-            </div>
-
-            <div>
-              <Label className="text-gray-300">Плечо</Label>
-              <Input
-                type="number"
-                min="1"
-                max="10"
-                value={settings.leverage}
-                onChange={(e) => setSettings(prev => ({ ...prev, leverage: Number(e.target.value) }))}
-                className="bg-gray-700 border-gray-600"
-              />
-            </div>
-
-            <div>
-              <Label className="text-gray-300">Take Profit (%)</Label>
-              <Input
-                type="number"
+                type="text"
                 step="0.1"
-                value={settings.take_profit_percent}
-                onChange={(e) => setSettings(prev => ({ ...prev, take_profit_percent: Number(e.target.value) }))}
+                value={settings.min_funding_rate}
+                onChange={(e) => setSettings(prev => ({ ...prev, min_funding_rate: e.target.value }))}
                 className="bg-gray-700 border-gray-600"
               />
             </div>
-
             <div>
-              <Label className="text-gray-300">Stop Loss (%)</Label>
+              <Label className="text-gray-300">Максимальная ставка фандинга (%)</Label>
               <Input
-                type="number"
-                step="0.1"
-                value={settings.stop_loss_percent}
-                onChange={(e) => setSettings(prev => ({ ...prev, stop_loss_percent: Number(e.target.value) }))}
+                type="text"
+                step="1"
+                value={settings.max_funding_rate}
+                onChange={(e) => setSettings(prev => ({ ...prev, max_funding_rate: e.target.value }))}
                 className="bg-gray-700 border-gray-600"
               />
             </div>
-
             <div>
-              <Label className="text-gray-300">Задержка (мс)</Label>
+              <Label className="text-gray-300">Минимальный объем 24ч (USD)</Label>
               <Input
-                type="number"
-                value={settings.delay_ms}
-                onChange={(e) => setSettings(prev => ({ ...prev, delay_ms: Number(e.target.value) }))}
+                type="text"
+                value={settings.min_volume_24h}
+                onChange={(e) => setSettings(prev => ({ ...prev, min_volume_24h: e.target.value }))}
                 className="bg-gray-700 border-gray-600"
               />
             </div>
-
-            <div>
-              <Label className="text-gray-300">Таймаут ордера (мин)</Label>
-              <Input
-                type="number"
-                value={settings.order_timeout_minutes}
-                onChange={(e) => setSettings(prev => ({ ...prev, order_timeout_minutes: Number(e.target.value) }))}
-                className="bg-gray-700 border-gray-600"
-              />
+            <div className="flex flex-col space-y-3">
+              <div className="flex items-center space-x-2">
+                <Switch
+                  checked={settings.telegram_notifications}
+                  onCheckedChange={(checked) => setSettings(prev => ({ ...prev, telegram_notifications: checked }))}
+                />
+                <Label className="text-gray-300">Telegram уведомления</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Switch
+                  checked={settings.auto_scan_enabled}
+                  onCheckedChange={(checked) => setSettings(prev => ({ ...prev, auto_scan_enabled: checked }))}
+                />
+                <Label className="text-gray-300">Автосканирование</Label>
+              </div>
             </div>
           </div>
-
-          <div className="flex space-x-2 mt-4">
-            <Button onClick={saveSettings} className="bg-blue-600 hover:bg-blue-700">
-              <Settings className="h-4 w-4 mr-2" />
-              Сохранить настройки
-            </Button>
-            
-            <Button onClick={testOrder} disabled={loading} variant="outline" className="border-gray-600">
-              <TestTube className="h-4 w-4 mr-2" />
-              Тестовый ордер
-            </Button>
-            
-            <Button onClick={cancelAllOrders} disabled={loading} variant="destructive">
-              <X className="h-4 w-4 mr-2" />
-              Отменить ордера
-            </Button>
-            
-            <Button onClick={closeAllPositions} disabled={loading} variant="destructive">
-              <Power className="h-4 w-4 mr-2" />
-              Закрыть позиции
+          <div className="mt-4">
+            <Button onClick={saveSettings} disabled={loading} className="bg-blue-600 hover:bg-blue-700">
+              {loading ? 'Сохранение...' : '💾 Сохранить настройки в БД'}
             </Button>
           </div>
         </CardContent>
       </Card>
 
-      {/* Ставки фандинга */}
       <Card className="bg-gray-800 border-gray-700">
         <CardHeader>
-          <CardTitle className="text-white">📊 Ставки Фандинга</CardTitle>
+          <CardTitle className="text-white">💰 Найденные возможности фандинга</CardTitle>
         </CardHeader>
         <CardContent>
-          {fundingRates.length > 0 ? (
+          {opportunities.length > 0 ? (
             <div className="space-y-3">
-              {fundingRates.map((rate, index) => (
-                <div key={index} className="flex items-center justify-between p-3 bg-gray-700 rounded-lg">
+              {opportunities.map((opportunity, index) => (
+                <div key={index} className="flex items-center justify-between" p-4 bg-gray-700 rounded-lg>
                   <div className="flex items-center space-x-4">
-                    <Badge className="bg-blue-600">{rate.exchange.toUpperCase()}</Badge>
-                    <span className="text-white font-semibold">{rate.symbol}</span>
-                    <span className="text-gray-400">${rate.mark_price.toFixed(2)}</span>
-                  </div>
-                  
-                  <div className="flex items-center space-x-4">
-                    <div className="text-center">
-                      <div className={`text-lg font-bold ${rate.funding_rate >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                        {rate.funding_rate >= 0 ? '+' : ''}{(rate.funding_rate * 100).toFixed(4)}%
+                    <Badge className="bg-blue-600">
+                      {getExchangeEmoji(opportunity.exchange)} {opportunity.exchange}
+                    </Badge>
+                    <div>
+                      <div className="flex items-center space-x-2">
+                        <span className="text-white" font-semibold>{opportunity.symbol}</span>
+                        {opportunity.pair_url && (
+                          <a 
+                            href={opportunity.pair_url} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="text-blue-400 hover:text-blue-300"
+                          >
+                            🔗
+                          </a>
+                        )}
                       </div>
-                      <div className="text-xs text-gray-400">фандинг</div>
+                      <div className="text-gray-400 text-sm">
+                        ${opportunity.mark_price && opportunity.mark_price.toFixed ? opportunity.mark_price.toFixed(2) : 'N/A'}
+                      </div>
                     </div>
-                    
+                  </div>
+                  <div className="flex items-center space-x-6">
+                    <div className="text-center">
+                      <div className={
+                        opportunity.funding_rate > 0 ? 
+                        'text-lg font-bold text-green-400' : 'text-lg font-bold text-red-400'
+                      }>
+                        {getFundingEmoji(opportunity.funding_rate)} {opportunity.funding_rate && opportunity.funding_rate.toFixed ? opportunity.funding_rate.toFixed(4) : '0.0000'}%
+                      </div>
+                      <div className="text-xs text-gray-400">
+                        {opportunity.funding_rate > 0 ? 'лонг' : 'шорт'}
+                      </div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-sm font-semibold text-yellow-400">
+                        {opportunity.annual_rate && opportunity.annual_rate.toFixed ? opportunity.annual_rate.toFixed(2) : '0.00'}%
+                      </div>
+                      <div className="text-xs text-gray-400">годовых</div>
+                    </div>
                     <div className="text-right">
                       <div className="text-sm text-gray-300">
-                        {new Date(rate.next_funding_time).toLocaleTimeString('ru-RU')}
+                        {(() => { const now = new Date(); const nextHour = new Date(now); nextHour.setHours(now.getHours() + 1, 0, 0, 0); return nextHour.toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Moscow" }); })()}
                       </div>
-                      <div className="text-xs text-gray-400">следующий</div>
+                      <div className="text-xs text-gray-400">следующий фандинг</div>
                     </div>
                   </div>
                 </div>
               ))}
             </div>
           ) : (
-            <p className="text-gray-400 text-center py-4">Нет данных о ставках фандинга</p>
+            <div className="text-center" py-8>
+              <p className="text-gray-400 text-lg">Возможности не найдены</p>
+              <p className="text-gray-500 text-sm mt-2">
+                Запустите сканирование или измените настройки фильтрации
+              </p>
+            </div>
           )}
         </CardContent>
       </Card>
-
-      {/* Активные позиции */}
-      {positions.length > 0 && (
-        <Card className="bg-gray-800 border-gray-700">
-          <CardHeader>
-            <CardTitle className="text-white">📈 Активные Фандинг-Позиции</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {positions.map((position) => (
-                <div key={position.id} className="p-4 bg-gray-700 rounded-lg">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center space-x-3">
-                      <Badge className="bg-purple-600">{position.exchange.toUpperCase()}</Badge>
-                      <span className="text-white font-semibold">{position.symbol}</span>
-                      <Badge variant={position.side === 'short' ? 'destructive' : 'default'}>
-                        {position.side === 'short' ? (
-                          <>
-                            <TrendingDown className="h-3 w-3 mr-1" />
-                            SHORT
-                          </>
-                        ) : (
-                          <>
-                            <TrendingUp className="h-3 w-3 mr-1" />
-                            LONG
-                          </>
-                        )}
-                      </Badge>
-                    </div>
-                    
-                    <div className="text-right">
-                      <div className={`text-lg font-bold ${position.unrealized_pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                        {position.unrealized_pnl >= 0 ? '+' : ''}${position.unrealized_pnl.toFixed(2)}
-                      </div>
-                      <div className="text-xs text-gray-400">PnL</div>
-                    </div>
-                  </div>
-                  
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                    <div>
-                      <span className="text-gray-400">Размер:</span>
-                      <div className="text-white font-mono">{position.size.toFixed(4)}</div>
-                    </div>
-                    <div>
-                      <span className="text-gray-400">Цена входа:</span>
-                      <div className="text-white font-mono">${position.entry_price.toFixed(2)}</div>
-                    </div>
-                    <div>
-                      <span className="text-gray-400">Плечо:</span>
-                      <div className="text-white font-mono">{position.leverage}x</div>
-                    </div>
-                    <div>
-                      <span className="text-gray-400">Фандинг получен:</span>
-                      <div className="text-green-400 font-mono">+${position.funding_received.toFixed(4)}</div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 };

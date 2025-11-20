@@ -86,17 +86,16 @@ const DebugPanel = () => {
     addLog(`🔧 Тестируем прямой вызов функции...`);
     
     try {
-      const response = await fetch('/api/v1/functions/improved_trading_engine_with_smart_demo_2025_11_12_09_00', {
+      const response = await fetch('/api/openai/v1/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
         },
-        body: JSON.stringify({ action: 'check_balance', exchange: 'bybit' })
+        body: JSON.stringify({ message: 'Hello' }) // Пример отправки сообщения
       });
       
-      const result = await response.text();
-      addLog(`📡 Прямой ответ: ${result.substring(0, 200)}...`);
+      const result = await response.json();
+      addLog(`📡 Прямой ответ: ${JSON.stringify(result).substring(0, 200)}...`);
       
     } catch (error: any) {
       addLog(`💥 Прямой вызов: ${error.message}`);

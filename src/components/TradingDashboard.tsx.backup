@@ -1,366 +1,108 @@
-import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import React from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Switch } from '@/components/ui/switch';
-import TradingSettingsFixed from './TradingSettingsFixed';
-import PositionsMonitor from './PositionsMonitor';
-import FundingBotSettings from './FundingBotSettings';
-import SmartBotSettings from './SmartBotSettings';
-import HedgePositions from './HedgePositions';
-import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
-import AuthForm from '@/components/AuthForm';
-import ApiKeysWithPassphrase from '@/components/ApiKeysWithPassphrase';
-import WorkingPayment from '@/components/WorkingPayment';
-import AdminPanel from '@/components/AdminPanel';
-
-import { RefreshCw } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import HomeTab from '@/components/tabs/HomeTab';
+import ConfigTab from '@/components/tabs/ConfigTab';
+import ApiKeysManager from '@/components/tabs/ApiKeysManager';
+import TradingTab from '@/components/tabs/TradingTab';
+import CombatArbitrageWithAutoScan from '@/components/tabs/CombatArbitrageWithAutoScan';
+import AdvancedArbitrageTrading from '@/components/tabs/AdvancedArbitrageTrading';
+import FundingBotHourly from '@/components/tabs/FundingBotHourly';
+import RealTriangularArbitrage from '@/components/tabs/RealTriangularArbitrage';
+import TriangularArbitrage from '@/components/tabs/TriangularArbitrage';
+import SubscriptionTab from '@/components/tabs/SubscriptionTab';
+import AdminPanel from '@/components/admin/AdminPanel';
 
 const TradingDashboard = () => {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [botStatus, setBotStatus] = useState('stopped');
-  const [selectedExchange, setSelectedExchange] = useState('bybit'); // Биржа из настроек
-  const [activeExchanges, setActiveExchanges] = useState({
-    binance: true,
-    bybit: true,
-    gate: true,
-    kucoin: true,
-    okx: true,
-    mexc: false
-  });
-  const { toast } = useToast();
-
-  const exchanges = [
-    { value: 'bybit', label: '🟠 Bybit' },
-    { value: 'binance', label: '🟡 Binance' },
-    { value: 'gate', label: '🟢 Gate.io' },
-    { value: 'kucoin', label: '🔵 KuCoin' },
-    { value: 'okx', label: '⚫ OKX' },
-    { value: 'mexc', label: '🔴 MEXC' }
-  ];
-
-  useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        setUser(session?.user ?? null);
-        if (session?.user) {
-          loadActiveExchanges(session.user.id);
-        }
-        setLoading(false);
-      }
-    );
-
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        loadActiveExchanges(session.user.id);
-      }
-      setLoading(false);
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
-
-  const loadActiveExchanges = async (userId: string) => {
-    try {
-      const { data, error } = await supabase.rpc('get_active_exchanges', {
-        p_user_id: userId
-      });
-
-      if (error) throw error;
-
-      if (data) {
-        setActiveExchanges(data);
-        console.log('✅ Loaded active exchanges:', data);
-      }
-    } catch (error) {
-      console.error('❌ Error loading active exchanges:', error);
-    }
-  };
-
-  const saveActiveExchanges = async (newExchanges: any) => {
-    if (!user?.id) return;
-
-    try {
-      const { data, error } = await supabase.rpc('save_active_exchanges', {
-        p_user_id: user.id,
-        p_active_exchanges: newExchanges
-      });
-
-      if (error) throw error;
-
-      console.log('✅ Saved active exchanges:', newExchanges);
-    } catch (error) {
-      console.error('❌ Error saving active exchanges:', error);
-      toast({
-        title: "Ошибка",
-        description: "Не удалось сохранить настройки бирж",
-        variant: "destructive",
-      });
-    }
-  };
-
-  // Функция для получения биржи из настроек
-  const handleExchangeChange = (exchange: string) => {
-    setSelectedExchange(exchange);
-    console.log('🏦 Выбрана биржа для операций:', exchange);
-  };
-
-  const handleTradingAction = async (action: string, targetExchange?: string) => {
-    if (!user?.id) {
-      toast({
-        title: "Ошибка",
-        description: "Пользователь не авторизован",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // Используем биржу из настроек или переданную напрямую
-    const exchange = targetExchange || selectedExchange;
-    const exchangeLabel = exchanges.find(ex => ex.value === exchange)?.label || exchange.toUpperCase();
-    
-    try {
-      console.log(`🚀 Trading action: ${action} on ${exchange} (from settings: ${selectedExchange})`);
-      
-      const { data, error } = await supabase.functions.invoke('simple_balance_check', {
-        body: {
-          action,
-          exchange,
-          userId: user.id,
-          symbol: 'BTCUSDT'
-        }
-      });
-
-      if (error) throw error;
-
-      if (data?.success) {
-        toast({
-          title: "Успешно",
-          description: data.message || `${action} выполнено на ${exchangeLabel}`,
-        });
-
-        if (action === 'start_bot') setBotStatus('running');
-        if (action === 'stop_bot') setBotStatus('stopped');
-      } else {
-        throw new Error(data?.error || 'Неизвестная ошибка');
-      }
-
-    } catch (error) {
-      toast({
-        title: "Ошибка",
-        description: error.message || 'Произошла ошибка при выполнении операции',
-        variant: "destructive",
-      });
-    }
-  };
-
-  const toggleExchange = async (exchange: string) => {
-    const newExchanges = {
-      ...activeExchanges,
-      [exchange]: !activeExchanges[exchange]
-    };
-    
-    setActiveExchanges(newExchanges);
-    await saveActiveExchanges(newExchanges);
-    
-    toast({
-      title: "Настройки сохранены",
-      description: `${exchanges.find(ex => ex.value === exchange)?.label} ${newExchanges[exchange] ? 'включена' : 'отключена'}`,
-    });
-  };
-
-  if (loading) {
-    return <div className="flex items-center justify-center min-h-screen">
-      <RefreshCw className="h-8 w-8 animate-spin" />
-    </div>;
-  }
-
-  if (!user) {
-    return <AuthForm />;
-  }
-
   return (
-    <div className="container mx-auto p-4 space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">🚀 Crypto Trading Bot</h1>
-        <div className="flex items-center gap-4">
-          <Badge variant={botStatus === 'running' ? 'default' : 'secondary'}>
-            {botStatus === 'running' ? '🟢 Активен' : '⚫ Остановлен'}
-          </Badge>
-          <Badge variant="outline">
-            Биржа: {exchanges.find(ex => ex.value === selectedExchange)?.label || selectedExchange.toUpperCase()}
-          </Badge>
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white p-4">
+      <div className="max-w-7xl mx-auto">
+        <div className="mb-8 text-center">
+          <h1 className="text-4xl font-bold mb-2 bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+            🤖 Crypto Trading Bot
+          </h1>
+          <p className="text-gray-300 text-lg">
+            Профессиональная торговая система для криптовалют
+          </p>
+        </div>
+
+        <div className="bg-gray-800/50 backdrop-blur-sm rounded-xl border border-gray-700 p-6">
+          <Tabs defaultValue="home" className="w-full">
+            <TabsList className="grid w-full grid-cols-6 bg-gray-700 mb-6 h-auto p-2">
+              <TabsTrigger value="home" className="data-[state=active]:bg-gray-700 py-3">
+                🏠 Главная
+              </TabsTrigger>
+              <TabsTrigger value="config" className="data-[state=active]:bg-gray-700 py-3">
+                ⚙️ Настройки
+              </TabsTrigger>
+              <TabsTrigger value="api-keys" className="data-[state=active]:bg-gray-700 py-3">
+                🔑 API Ключи
+              </TabsTrigger>
+              <TabsTrigger value="trading" className="data-[state=active]:bg-gray-700 py-3">
+                📊 Торговля
+              </TabsTrigger>
+              <TabsTrigger value="subscription" className="data-[state=active]:bg-gray-700 py-3">
+                💎 Подписка
+              </TabsTrigger>
+              <TabsTrigger value="admin" className="data-[state=active]:bg-gray-700 py-3">
+                🛡️ Админка
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsList className="grid w-full grid-cols-2 lg:grid-cols-4 bg-gray-700 mb-6 h-auto p-2">
+              <TabsTrigger value="funding-bot" className="data-[state=active]:bg-gray-600 py-3 text-sm">
+                🚀 Сканирование фандинга
+              </TabsTrigger>
+              <TabsTrigger value="inter-exchange-arbitrage" className="data-[state=active]:bg-gray-600 py-3 text-sm">
+                💱 Межбиржевой Арбитраж
+              </TabsTrigger>
+              <TabsTrigger value="funding-bot" className="data-[state=active]:bg-gray-600 py-3 text-sm">
+                🤖 Фандинг Бот
+              </TabsTrigger>
+              <TabsTrigger value="triangular-arbitrage" className="data-[state=active]:bg-gray-600 py-3 text-sm">
+                🔺 Треугольный Арбитраж
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="home">
+              <HomeTab />
+            </TabsContent>
+
+            <TabsContent value="config">
+              <ConfigTab />
+            </TabsContent>
+
+            <TabsContent value="api-keys">
+              <ApiKeysManager />
+            </TabsContent>
+
+            <TabsContent value="trading">
+              <TradingTab />
+            </TabsContent>
+
+            <TabsContent value="funding-bot">
+              <FundingBotHourly />
+            </TabsContent>
+
+            <TabsContent value="inter-exchange-arbitrage">
+              <AdvancedArbitrageTrading />
+            </TabsContent>
+
+            <TabsContent value="triangular-arbitrage">
+              <RealTriangularArbitrage />
+            </TabsContent>
+
+            <TabsContent value="subscription">
+              <SubscriptionTab />
+            </TabsContent>
+
+            <TabsContent value="admin">
+              <AdminPanel />
+            </TabsContent>
+          </Tabs>
         </div>
       </div>
-
-      <Tabs defaultValue="trading" className="w-full">
-        <TabsList className="grid w-full grid-cols-6">
-          <TabsTrigger value="trading">Торговля</TabsTrigger>
-          <TabsTrigger value="funding">Фандинг бот</TabsTrigger>
-          <TabsTrigger value="smart">Smart бот</TabsTrigger>
-          <TabsTrigger value="hedge">Хеджирование</TabsTrigger>
-          <TabsTrigger value="api">API Ключи</TabsTrigger>
-          <TabsTrigger value="admin">Админ</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="trading" className="space-y-6">
-          {/* Основные кнопки управления */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Управление ботом</CardTitle>
-              <CardDescription>
-                Операции выполняются на выбранной бирже из настроек: {exchanges.find(ex => ex.value === selectedExchange)?.label}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <Button 
-                  onClick={() => handleTradingAction('get_balance')}
-                  variant="outline"
-                  className="w-full"
-                >
-                  💰 Проверить баланс
-                </Button>
-                <Button 
-                  onClick={() => handleTradingAction('scan_funding')}
-                  variant="outline"
-                  className="w-full"
-                >
-                  📊 Скан фандинга
-                </Button>
-                <Button 
-                  onClick={() => handleTradingAction('start_bot')}
-                  className="w-full bg-green-600 hover:bg-green-700"
-                >
-                  🚀 Старт бот
-                </Button>
-                <Button 
-                  onClick={() => handleTradingAction('stop_bot')}
-                  variant="destructive"
-                  className="w-full"
-                >
-                  ⛔ Стоп бот
-                </Button>
-              </div>
-
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <Button 
-                  onClick={() => handleTradingAction('test_long')}
-                  className="w-full bg-green-500 hover:bg-green-600"
-                >
-                  🟢 Тестовый LONG
-                </Button>
-                <Button 
-                  onClick={() => handleTradingAction('test_short')}
-                  className="w-full bg-red-500 hover:bg-red-600"
-                >
-                  🔴 Тестовый SHORT
-                </Button>
-                <Button 
-                  onClick={() => handleTradingAction('cancel_orders')}
-                  variant="destructive"
-                  className="w-full"
-                >
-                  ❌ Отменить все ордера
-                </Button>
-                <Button 
-                  onClick={() => handleTradingAction('close_positions')}
-                  className="w-full bg-red-600 hover:bg-red-700"
-                >
-                  🔴 Закрыть все позиции
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Управление по биржам */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Управление позициями</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                {exchanges.map((exchange) => (
-                  <div key={exchange.value} className="space-y-2">
-                    <h4 className="font-semibold text-center">{exchange.label}</h4>
-                    <div className="flex gap-2">
-                      <Button 
-                        size="sm" 
-                        onClick={() => handleTradingAction('close_positions', exchange.value)}
-                        className="flex-1"
-                      >
-                        🔴 Закрыть {exchange.label}
-                      </Button>
-                      <Button 
-                        size="sm" 
-                        variant="outline"
-                        onClick={() => handleTradingAction('cancel_orders', exchange.value)}
-                        className="flex-1"
-                      >
-                        ❌ Отменить {exchange.label}
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Активные биржи для автоторговли */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Активные биржи для бота</CardTitle>
-              <CardDescription>
-                📊 Активно: {Object.values(activeExchanges).filter(Boolean).length} из {exchanges.length} бирж для почасового бота (независимо от настроек и других ботов)
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                {exchanges.map((exchange) => (
-                  <div key={exchange.value} className="flex items-center justify-between p-3 border rounded-lg">
-                    <span className="font-medium">{exchange.label}</span>
-                    <div className="flex items-center space-x-2">
-                      <Switch
-                        checked={activeExchanges[exchange.value]}
-                        onCheckedChange={() => toggleExchange(exchange.value)}
-                      />
-                      {activeExchanges[exchange.value] && <span className="text-green-500">✓</span>}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Передаем функцию для получения выбранной биржи */}
-          <TradingSettingsFixed user={user} onExchangeChange={handleExchangeChange} currentExchange={selectedExchange} />
-          <PositionsMonitor />
-        </TabsContent>
-
-        <TabsContent value="funding">
-          <FundingBotSettings />
-        </TabsContent>
-
-        <TabsContent value="smart">
-          <SmartBotSettings />
-        </TabsContent>
-
-        <TabsContent value="hedge">
-          <HedgePositions />
-        </TabsContent>
-
-        <TabsContent value="api">
-          <ApiKeysWithPassphrase />
-        </TabsContent>
-
-        <TabsContent value="admin">
-          <AdminPanel />
-        </TabsContent>
-      </Tabs>
     </div>
   );
 };

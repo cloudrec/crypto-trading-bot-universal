@@ -442,11 +442,11 @@ const TradingForm = ({
               <div className="space-y-2 mb-4">
                 <div className="flex justify-between">
                   <span className="text-gray-400">USDT:</span>
-                  <span className="text-white font-mono">{currentBalance.balance?.USDT?.toFixed(2) || '0.00'}</span>
+                  <span className="text-white font-mono">{parseFloat(currentBalance.balance?.USDT || currentBalance.balance || "0").toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-400">Доступно:</span>
-                  <span className="text-green-400 font-mono">{currentBalance.balance?.available?.toFixed(2) || '0.00'}</span>
+                  <span className="text-green-400 font-mono">{parseFloat(currentBalance.balance?.available || "0").toFixed(2)}</span>
                 </div>
               </div>
             ) : (

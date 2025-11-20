@@ -1,478 +1,109 @@
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
-import { useToast } from '@/hooks/use-toast';
-import { Eye, EyeOff, Key, Shield, CheckCircle, XCircle, RefreshCw, AlertTriangle } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 
-interface ApiKeysManagerProps {
-  onKeysUpdate?: () => void;
-}
-
-const ApiKeysManager: React.FC<ApiKeysManagerProps> = ({ onKeysUpdate }) => {
-  const { user } = useAuth();
-  const { toast } = useToast();
+const ApiKeysManager: React.FC = () => {
   const [loading, setLoading] = useState<Record<string, boolean>>({});
   const [showKeys, setShowKeys] = useState<Record<string, boolean>>({});
-  const [connectionStatus, setConnectionStatus] = useState<Record<string, any>>({});
-
   const [apiKeys, setApiKeys] = useState<Record<string, any>>({
-    bybit: { apiKey: '', secret: '', passphrase: '', testnet: false },
-    binance: { apiKey: '', secret: '', passphrase: '', testnet: false },
+    bybit: { apiKey: "test_bybit_key_12345", secret: "test_bybit_secret_67890", passphrase: "test_passphrase", testnet: false },
+    binance: { apiKey: "test_binance_key_12345", secret: "test_binance_secret_67890", passphrase: "", testnet: false },
     gate: { apiKey: '', secret: '', passphrase: '', testnet: false },
     kucoin: { apiKey: '', secret: '', passphrase: '', testnet: false },
     okx: { apiKey: '', secret: '', passphrase: '', testnet: false },
-    mexc: { apiKey: '', secret: '', passphrase: '', testnet: false }
+    mexc: { apiKey: '', secret: '', passphrase: '', testnet: false },
+    bitget: { apiKey: '', secret: '', passphrase: '', testnet: false },
+    huobi: { apiKey: '', secret: '', passphrase: '', testnet: false }
   });
 
   const exchanges = [
-    { 
-      id: 'bybit', 
-      name: 'Bybit', 
-      icon: '🟡', 
-      color: 'bg-yellow-600',
-      needsPassphrase: false,
-      docs: 'https://www.bybit.com/app/user/api-management'
-    },
-    { 
-      id: 'binance', 
-      name: 'Binance', 
-      icon: '🟨', 
-      color: 'bg-orange-600',
-      needsPassphrase: false,
-      docs: 'https://www.binance.com/en/my/settings/api-management'
-    },
-    { 
-      id: 'gate', 
-      name: 'Gate.io', 
-      icon: '🟦', 
-      color: 'bg-blue-600',
-      needsPassphrase: true,
-      docs: 'https://www.gate.io/myaccount/apiv4keys'
-    },
-    { 
-      id: 'kucoin', 
-      name: 'KuCoin', 
-      icon: '🟢', 
-      color: 'bg-green-600',
-      needsPassphrase: true,
-      docs: 'https://www.kucoin.com/account/api'
-    },
-    { 
-      id: 'okx', 
-      name: 'OKX', 
-      icon: '⚫', 
-      color: 'bg-gray-600',
-      needsPassphrase: true,
-      docs: 'https://www.okx.com/account/my-api'
-    },
-    { 
-      id: 'mexc', 
-      name: 'MEXC', 
-      icon: '🔵', 
-      color: 'bg-indigo-600',
-      needsPassphrase: false,
-      docs: 'https://www.mexc.com/user/openapi'
-    }
+    { id: 'bybit', name: 'Bybit', icon: '🟡', needsPassphrase: false },
+    { id: 'binance', name: 'Binance', icon: '🟨', needsPassphrase: false },
+    { id: 'gate', name: 'Gate.io', icon: '🟦', needsPassphrase: true },
+    { id: 'kucoin', name: 'KuCoin', icon: '🟢', needsPassphrase: true },
+    { id: 'okx', name: 'OKX', icon: '🔵', needsPassphrase: true },
+    { id: 'mexc', name: 'MEXC', icon: '🔴', needsPassphrase: false },
+    { id: 'bitget', name: 'Bitget', icon: '🟪', needsPassphrase: true },
+    { id: 'huobi', name: 'Huobi', icon: '🟧', needsPassphrase: false }
   ];
 
   useEffect(() => {
-    if (user?.id) {
-      loadApiKeys();
-      checkAllConnections();
-    }
-  }, [user?.id]);
+    console.log("🚀 ApiKeysManager загружен");
+    loadApiKeys();
+  }, []);
 
-  // Загрузка API ключей из базы данных
   const loadApiKeys = async () => {
+    console.log("🔍 Начинаю загрузку API ключей");
     try {
-      console.log('🔍 Загружаем API ключи из БД...');
-      
       const { data, error } = await supabase
         .from('api_keys_2025_11_12_05_30')
-        .select('*')
-        .eq('user_id', user?.id);
+        .select('*');
 
-      if (error) throw error;
-
-      console.log('🔑 Загруженные API ключи из БД:', data);
+      console.log("🔍 Запрос выполнен, data:", data, "error:", error);
+      if (error) {
+        console.error('Ошибка загрузки API ключей:', error);
+        return;
+      }
 
       if (data && data.length > 0) {
-        const newApiKeys = { ...apiKeys };
-        console.log('🔍 Начальное состояние newApiKeys:', Object.keys(newApiKeys));
-        
-        data.forEach(keyData => {
-          console.log(`🔍 Обрабатываем ключ для биржи: ${keyData.exchange}`);
-          console.log(`🔍 Есть ли ${keyData.exchange} в newApiKeys:`, !!newApiKeys[keyData.exchange]);
-          
-          if (newApiKeys[keyData.exchange]) {
-            newApiKeys[keyData.exchange] = {
-              apiKey: keyData.api_key || '',
-              secret: keyData.secret || '',
-              passphrase: keyData.passphrase || '',
-              testnet: keyData.testnet || false
-            };
-            console.log(`✅ Загружены ключи для ${keyData.exchange}:`, {
-              apiKey: keyData.api_key ? `${keyData.api_key.substring(0, 8)}...` : 'пусто',
-              secret: keyData.secret ? `${keyData.secret.substring(0, 8)}...` : 'пусто',
-              passphrase: keyData.passphrase ? '***' : 'пусто',
-              testnet: keyData.testnet
-            });
-          } else {
-            console.log(`❌ Биржа ${keyData.exchange} не найдена в newApiKeys!`);
+        console.log("🔍 Обрабатываю", data.length, "записей из базы:");
+        const loadedKeys = {};
+        data.forEach(item => {
+          console.log("🔍 Полная запись:", item);
+          console.log("🔍 exchange:", item.exchange, "api_key:", item.api_key?.substring(0,8));
+          const exchangeKey = item.exchange || item.exchange_name || item.name;
+          if (!exchangeKey) {
+            console.warn("⚠️ Пропускаю запись без exchange:", item);
+            return;
           }
+          loadedKeys[exchangeKey] = {
+            apiKey: item.api_key || '',
+            secret: item.secret_key || '',
+            passphrase: item.passphrase || '',
+            testnet: item.testnet || false
+          };
         });
-        setApiKeys(newApiKeys);
-        console.log('🎯 Все ключи загружены в состояние:', newApiKeys);
-      } else {
-        console.log('📝 API ключи не найдены в БД');
+        console.log("🔍 Финальный keysMap для установки:", loadedKeys);
+        setApiKeys(prev => ({ ...prev, ...loadedKeys }));
+        console.log("✅ setApiKeys выполнен, состояние должно обновиться");
       }
-    } catch (error: any) {
-      console.error('❌ Ошибка загрузки API ключей:', error);
-      toast({
-        title: "Ошибка",
-        description: `Ошибка загрузки ключей: ${error.message}`,
-        variant: "destructive",
-      });
+    } catch (error) {
+      console.error('Ошибка при загрузке API ключей:', error);
     }
   };
 
-  // Сохранение API ключей
   const saveApiKeys = async (exchange: string) => {
     setLoading(prev => ({ ...prev, [exchange]: true }));
     
     try {
       const keys = apiKeys[exchange];
       
-      console.log(`💾 Сохраняем API ключи для ${exchange}:`, {
-        apiKey: keys.apiKey ? `${keys.apiKey.substring(0, 8)}...` : 'пусто',
-        secret: keys.secret ? `${keys.secret.substring(0, 8)}...` : 'пусто',
-        passphrase: keys.passphrase ? '***' : 'пусто',
-        testnet: keys.testnet
-      });
-
-      if (!keys.apiKey || !keys.secret) {
-        toast({
-          title: "Ошибка",
-          description: "API Key и Secret обязательны для заполнения",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      const exchangeInfo = exchanges.find(ex => ex.id === exchange);
-      if (exchangeInfo?.needsPassphrase && !keys.passphrase) {
-        toast({
-          title: "Ошибка",
-          description: `Для ${exchangeInfo.name} требуется Passphrase`,
-          variant: "destructive",
-        });
-        return;
-      }
-
       const { error } = await supabase
         .from('api_keys_2025_11_12_05_30')
         .upsert({
-          user_id: user?.id,
           exchange: exchange,
           api_key: keys.apiKey,
-          secret: keys.secret,
+          secret_key: keys.secret,
           passphrase: keys.passphrase,
           testnet: keys.testnet,
           updated_at: new Date().toISOString()
         }, {
-          onConflict: 'user_id,exchange'
+          onConflict: 'exchange'
         });
 
       if (error) throw error;
-
-      console.log(`✅ API ключи для ${exchange} сохранены в БД`);
-
-      toast({
-        title: "Успех",
-        description: `API ключи для ${exchange} сохранены`,
-      });
-
-      // Вызываем callback если есть
-      if (onKeysUpdate) {
-        onKeysUpdate();
-      }
-
-      // Проверяем подключение после сохранения
-      setTimeout(() => {
-        checkConnection(exchange);
-      }, 1000);
-
-    } catch (error: any) {
-      console.error(`❌ Ошибка сохранения API ключей для ${exchange}:`, error);
-      toast({
-        title: "Ошибка",
-        description: `Ошибка сохранения: ${error.message}`,
-        variant: "destructive",
-      });
+      console.log(`API ключи для ${exchange} сохранены`);
+    } catch (error) {
+      console.error(`Ошибка сохранения ключей для ${exchange}:`, error);
     } finally {
       setLoading(prev => ({ ...prev, [exchange]: false }));
     }
   };
 
-  // Детальное тестирование Bybit
-  const testBybitDetailed = async () => {
-    setLoading(prev => ({ ...prev, bybit_debug: true }));
-    
-    try {
-      console.log('🔬 Запускаем детальное тестирование Bybit...');
-      
-      const { data, error } = await supabase.functions.invoke('bybit_alternative_no_sign_url_2025_11_12_11_25', {
-        body: { action: 'check_balance', exchange: 'bybit' }
-      });
-      
-      if (error) {
-        console.error('❌ Ошибка вызова функции:', error);
-        toast({
-          title: "Ошибка тестирования",
-          description: `Ошибка: ${error.message}`,
-          variant: "destructive",
-        });
-        return;
-      }
-      
-      console.log('🔬 Результат детального тестирования Bybit:', data);
-      
-      // Выводим детальную debug информацию
-      if (data.debug) {
-        console.log('🔍 ДЕТАЛЬНАЯ DEBUG ИНФОРМАЦИЯ:');
-        console.log('⏰ Timestamp:', data.debug.timestamp);
-        console.log('📝 Sign String:', data.debug.signString);
-        console.log('✍️ Signature:', data.debug.signature);
-        console.log('🌐 URL:', data.debug.url);
-        console.log('📋 Headers:', data.debug.headers);
-        if (data.debug.response) {
-          console.log('📊 Response:', data.debug.response);
-        }
-      }
-      
-      if (data.success) {
-        toast({
-          title: "Bybit тест успешен!",
-          description: "Подпись работает правильно",
-        });
-      } else {
-        toast({
-          title: "Bybit тест неудачен",
-          description: `Ошибка: ${data.error}`,
-          variant: "destructive",
-        });
-      }
-      
-    } catch (error: any) {
-      console.error('❌ Ошибка детального тестирования:', error);
-      toast({
-        title: "Ошибка тестирования",
-        description: error.message,
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(prev => ({ ...prev, bybit_debug: false }));
-    }
-  };
-
-  // Универсальная диагностика всех бирж
-  const runUniversalDiagnostics = async () => {
-    setLoading(prev => ({ ...prev, universal_diagnostics: true }));
-    
-    try {
-      console.log('🔍 Запускаем универсальную диагностику...');
-      
-      const { data, error } = await supabase.functions.invoke('universal_exchange_diagnostics_2025_11_12_11_40', {
-        body: { action: 'diagnose_all' }
-      });
-      
-      if (error) {
-        console.error('❌ Ошибка диагностики:', error);
-        toast({
-          title: "Ошибка диагностики",
-          description: error.message,
-          variant: "destructive",
-        });
-        return;
-      }
-      
-      console.log('📊 Результаты универсальной диагностики:', data);
-      
-      // Показываем детальные результаты
-      if (data?.results?.diagnostics) {
-        console.log('🔍 ДЕТАЛЬНАЯ ДИАГНОСТИКА ВСЕХ БИРЖ:');
-        console.log(`📊 Общая статистика: ${data.total_keys_in_db} ключей в БД`);
-        console.log(`📊 Биржи в БД: ${data.exchanges_in_db.join(', ')}`);
-        console.log('---');
-        
-        Object.entries(data.results.diagnostics).forEach(([exchange, result]: [string, any]) => {
-          console.log(`🔍 ДИАГНОСТИКА ${exchange.toUpperCase()}:`);
-          console.log(`  ✅ Успех: ${result.success}`);
-          console.log(`  📊 HTTP статус: ${result.status || 'нет данных'}`);
-          console.log(`  ❌ Ошибка: ${result.error || 'нет'}`);
-          console.log(`  🔑 Ключ API: ${result.database_record?.api_key_length || 0} символов`);
-          console.log(`  🔐 Секрет: ${result.database_record?.secret_length || 0} символов`);
-          console.log(`  🔑 Passphrase: ${result.database_record?.has_passphrase ? 'есть' : 'нет'}`);
-          console.log(`  📅 Создан: ${result.database_record?.created_at || 'нет данных'}`);
-          if (result.response) {
-            console.log(`  📊 Ответ API:`, result.response);
-          }
-          console.log('---');
-        });
-      }
-      
-      toast({
-        title: "Диагностика завершена",
-        description: `Проверено ${Object.keys(data?.results?.diagnostics || {}).length} бирж. Смотрите консоль.`,
-      });
-      
-    } catch (error: any) {
-      console.error('💥 Ошибка диагностики:', error);
-      toast({
-        title: "Ошибка диагностики",
-        description: error.message,
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(prev => ({ ...prev, universal_diagnostics: false }));
-    }
-  };
-
-  // Проверка подключения к бирже
-  const checkConnection = async (exchange: string) => {
-    setLoading(prev => ({ ...prev, [`test_${exchange}`]: true }));
-    
-    try {
-      console.log(`🔍 Проверяем подключение к ${exchange}...`);
-
-      // Используем специальную функцию для Bybit
-      // Используем специальные функции для разных бирж
-      let functionName;
-      if (exchange === "bybit") {
-        functionName = "bybit_alternative_no_sign_url_2025_11_12_11_25";
-      } else if (exchange === "gate") {
-        functionName = "gate_wider_margins_v24_2025_11_09_18_25";
-      } else if (exchange === "kucoin") {
-        functionName = "kucoin_leverage_fixed_v27_2025_11_09_19_20";
-      } else {
-        functionName = "balance_checker_bybit_v2_fixed_2025_11_12_10_50";
-      }
-      
-      let requestBody;
-      if (exchange === "gate") {
-        requestBody = { action: "get_balance", user_id: user?.id };
-      } else if (exchange === "kucoin") {
-        requestBody = { action: "get_balance", user_id: user?.id };
-      } else {
-        requestBody = { action: "check_balance", exchange: exchange };
-      }
-      
-      const { data, error } = await supabase.functions.invoke(functionName, {
-        body: requestBody
-      });
-
-      let status;
-      if (exchange === "gate") {
-        // Gate.io возвращает другой формат
-        status = {
-          connected: data.success,
-          balance: {
-            exchange: "gate",
-            USDT: { total: data.balance || 0, available: data.balance || 0 },
-            BTC: { total: 0, available: 0 },
-            total_usdt: data.balance || 0
-          },
-          error: data.success ? null : data.error,
-          timestamp: new Date().toISOString()
-        };
-      } else if (exchange === "kucoin") {
-        // KuCoin возвращает другой формат
-        status = {
-          connected: data.success,
-          balance: {
-            exchange: "kucoin",
-            USDT: { total: data.balance || 0, available: data.balance || 0 },
-            BTC: { total: 0, available: 0 },
-            total_usdt: data.balance || 0
-          },
-          error: data.success ? null : data.error,
-          timestamp: new Date().toISOString()
-        };
-      } else {
-        status = {
-          connected: data.success && !data.balance.is_demo,
-          balance: data.balance,
-          error: data.error || null,
-          timestamp: new Date().toISOString()
-        };
-      }
-
-      setConnectionStatus(prev => ({
-        ...prev,
-        [exchange]: status
-      }));
-
-      console.log(`📊 Статус подключения ${exchange}:`, status);
-
-      if (status.connected) {
-        toast({
-          title: "Подключение успешно",
-          description: `${exchange}: Реальные данные получены`,
-        });
-      } else {
-        toast({
-          title: "Демо режим",
-          description: `${exchange}: Используются демо данные`,
-          variant: "secondary",
-        });
-      }
-
-    } catch (error: any) {
-      console.error(`❌ Ошибка проверки подключения ${exchange}:`, error);
-      
-      setConnectionStatus(prev => ({
-        ...prev,
-        [exchange]: {
-          connected: false,
-          error: error.message,
-          timestamp: new Date().toISOString()
-        }
-      }));
-
-      toast({
-        title: "Ошибка подключения",
-        description: `${exchange}: ${error.message}`,
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(prev => ({ ...prev, [`test_${exchange}`]: false }));
-    }
-  };
-
-  // Проверка всех подключений
-  const checkAllConnections = async () => {
-    setLoading(prev => ({ ...prev, checkAll: true }));
-    
-    try {
-      console.log('🔄 Проверяем все подключения...');
-      for (const exchange of exchanges) {
-        await checkConnection(exchange.id);
-        // Небольшая задержка между проверками
-        await new Promise(resolve => setTimeout(resolve, 500));
-      }
-    } finally {
-      setLoading(prev => ({ ...prev, checkAll: false }));
-    }
-  };
-
-  // Обновление API ключей
   const updateApiKey = (exchange: string, field: string, value: string | boolean) => {
-    console.log(`🔧 Обновляем ${exchange}.${field} = "${value}"`);
     setApiKeys(prev => ({
       ...prev,
       [exchange]: {
@@ -482,305 +113,85 @@ const ApiKeysManager: React.FC<ApiKeysManagerProps> = ({ onKeysUpdate }) => {
     }));
   };
 
-  // Переключение видимости ключей
-  const toggleShowKey = (exchange: string, field: string) => {
-    const key = `${exchange}_${field}`;
-    setShowKeys(prev => ({
-      ...prev,
-      [key]: !prev[key]
-    }));
-  };
-
   return (
     <div className="space-y-6">
-      {/* Заголовок */}
-      <Card className="bg-gray-800 border-gray-700">
+      <Card>
         <CardHeader>
-          <CardTitle className="text-white flex items-center gap-2">
-            <Key className="w-6 h-6" />
-            🔑 Управление API ключами бирж
+          <CardTitle className="text-2xl font-bold">
+            🔑 Управление API Ключами (8 бирж)
           </CardTitle>
+          <p className="text-muted-foreground">
+            Настройте API ключи для всех поддерживаемых бирж
+          </p>
         </CardHeader>
         <CardContent>
-          <div className="text-gray-300 space-y-2">
-            <p>Настройте API ключи для подключения к биржам и получения реальных данных.</p>
-            <div className="flex items-center gap-2 text-sm">
-              <Shield className="w-4 h-4 text-green-400" />
-              <span>Все ключи хранятся в зашифрованном виде в защищенной базе данных</span>
-            </div>
-          </div>
-          
-          <div className="mt-4 flex space-x-3">
-            <Button
-              onClick={loadApiKeys}
-              disabled={loading.load}
-              variant="outline"
-            >
-              {loading.load ? <RefreshCw className="w-4 h-4 animate-spin mr-2" /> : <RefreshCw className="w-4 h-4 mr-2" />}
-              Перезагрузить ключи
-            </Button>
-            
-            <Button
-              onClick={checkAllConnections}
-              disabled={loading.checkAll}
-              variant="outline"
-            >
-              {loading.checkAll ? '🔄 Проверка...' : '🔍 Проверить все подключения'}
-            </Button>
-            
-            <Button
-              onClick={runUniversalDiagnostics}
-              disabled={loading.universal_diagnostics}
-              variant="outline"
-              className="bg-red-600 hover:bg-red-700 text-white border-red-500"
-            >
-              {loading.universal_diagnostics ? <RefreshCw className="w-4 h-4 animate-spin mr-2" /> : <AlertTriangle className="w-4 h-4 mr-2" />}
-              {loading.universal_diagnostics ? '🔍 Диагностика...' : '🚫 Диагностика ошибок'}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* API ключи для каждой биржи */}
-      {exchanges.map(exchange => {
-        const keys = apiKeys[exchange.id];
-        const status = connectionStatus[exchange.id];
-        
-        return (
-          <Card key={exchange.id} className="bg-gray-800 border-gray-700">
-            <CardHeader>
-              <CardTitle className="text-white flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span>{exchange.icon}</span>
-                  <span>{exchange.name}</span>
-                  {status && (
-                    <Badge variant={status.connected ? "default" : "secondary"}>
-                      {status.connected ? (
-                        <><CheckCircle className="w-3 h-3 mr-1" /> Подключено</>
-                      ) : (
-                        <><XCircle className="w-3 h-3 mr-1" /> Демо режим</>
-                      )}
-                    </Badge>
-                  )}
-                </div>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => window.open(exchange.docs, '_blank')}
-                >
-                  📖 Документация
-                </Button>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* API Key */}
-                <div>
-                  <Label className="text-gray-300">API Key</Label>
-                  <div className="relative">
-                    <Input
-                      type={showKeys[`${exchange.id}_apiKey`] ? "text" : "password"}
-                      value={keys.apiKey}
-                      onChange={(e) => updateApiKey(exchange.id, 'apiKey', e.target.value)}
-                      className="bg-gray-700 border-gray-600 pr-10"
-                      placeholder="Введите API Key"
-                    />
+          <div className="grid gap-6">
+            {exchanges.map((exchange) => (
+              <Card key={exchange.id} className="p-4">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center space-x-3">
+                    <div className="text-2xl">{exchange.icon}</div>
+                    <h3 className="text-lg font-semibold">{exchange.name}</h3>
+                  </div>
+                  <div className="flex items-center space-x-2">
                     <Button
-                      type="button"
-                      variant="ghost"
+                      variant="outline"
                       size="sm"
-                      className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                      onClick={() => toggleShowKey(exchange.id, 'apiKey')}
+                      onClick={() => setShowKeys(prev => ({ ...prev, [exchange.id]: !prev[exchange.id] }))}
                     >
-                      {showKeys[`${exchange.id}_apiKey`] ? (
-                        <EyeOff className="h-4 w-4" />
-                      ) : (
-                        <Eye className="h-4 w-4" />
-                      )}
+                      {showKeys[exchange.id] ? '🙈 Скрыть' : '👁️ Показать'}
+                    </Button>
+                    <Button
+                      onClick={() => saveApiKeys(exchange.id)}
+                      disabled={loading[exchange.id]}
+                      size="sm"
+                    >
+                      {loading[exchange.id] ? 'Сохранение...' : 'Сохранить'}
                     </Button>
                   </div>
-                  {keys.apiKey && (
-                    <div className="text-xs text-gray-400 mt-1">
-                      Длина: {keys.apiKey.length} символов
-                    </div>
-                  )}
                 </div>
 
-                {/* Secret */}
-                <div>
-                  <Label className="text-gray-300">Secret</Label>
-                  <div className="relative">
-                    <Input
-                      type={showKeys[`${exchange.id}_secret`] ? "text" : "password"}
-                      value={keys.secret}
-                      onChange={(e) => updateApiKey(exchange.id, 'secret', e.target.value)}
-                      className="bg-gray-700 border-gray-600 pr-10"
-                      placeholder="Введите Secret"
-                    />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                      onClick={() => toggleShowKey(exchange.id, 'secret')}
-                    >
-                      {showKeys[`${exchange.id}_secret`] ? (
-                        <EyeOff className="h-4 w-4" />
-                      ) : (
-                        <Eye className="h-4 w-4" />
-                      )}
-                    </Button>
-                  </div>
-                  {keys.secret && (
-                    <div className="text-xs text-gray-400 mt-1">
-                      Длина: {keys.secret.length} символов
-                    </div>
-                  )}
-                </div>
-
-                {/* Passphrase (только для бирж, которым это нужно) */}
-                {exchange.needsPassphrase && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <Label className="text-gray-300">Passphrase</Label>
-                    <div className="relative">
-                      <Input
-                        type={showKeys[`${exchange.id}_passphrase`] ? "text" : "password"}
-                        value={keys.passphrase}
-                        onChange={(e) => updateApiKey(exchange.id, 'passphrase', e.target.value)}
-                        className="bg-gray-700 border-gray-600 pr-10"
-                        placeholder="Введите Passphrase"
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                        onClick={() => toggleShowKey(exchange.id, 'passphrase')}
-                      >
-                        {showKeys[`${exchange.id}_passphrase`] ? (
-                          <EyeOff className="h-4 w-4" />
-                        ) : (
-                          <Eye className="h-4 w-4" />
-                        )}
-                      </Button>
-                    </div>
-                    {keys.passphrase && (
-                      <div className="text-xs text-gray-400 mt-1">
-                        Длина: {keys.passphrase.length} символов
-                      </div>
-                    )}
+                    <Label>API Key</Label>
+                    <Input
+                      type={showKeys[exchange.id] ? 'text' : 'password'}
+                      placeholder="Введите API ключ"
+                      value={apiKeys[exchange.id]?.apiKey || ''}
+                      onChange={(e) => updateApiKey(exchange.id, 'apiKey', e.target.value)}
+                    />
                   </div>
-                )}
-
-                {/* Testnet переключатель */}
-                <div className="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
-                    id={`testnet_${exchange.id}`}
-                    checked={keys.testnet}
-                    onChange={(e) => updateApiKey(exchange.id, 'testnet', e.target.checked)}
-                    className="rounded"
-                  />
-                  <Label htmlFor={`testnet_${exchange.id}`} className="text-gray-300">
-                    Использовать Testnet
-                  </Label>
-                </div>
-              </div>
-
-              {/* Статус подключения */}
-              {status && (
-                <div className="bg-gray-700 p-3 rounded">
-                  <div className="flex items-center justify-between">
+                  <div>
+                    <Label>Secret Key</Label>
+                    <Input
+                      type={showKeys[exchange.id] ? 'text' : 'password'}
+                      placeholder="Введите секретный ключ"
+                      value={apiKeys[exchange.id]?.secret || ''}
+                      onChange={(e) => updateApiKey(exchange.id, 'secret', e.target.value)}
+                    />
+                  </div>
+                  {exchange.needsPassphrase && (
                     <div>
-                      <div className="text-sm text-gray-300">Статус подключения:</div>
-                      <div className={`font-mono text-sm ${status.connected ? 'text-green-400' : 'text-yellow-400'}`}>
-                        {status.connected ? '✅ Реальные данные' : '🧪 Демо данные'}
-                      </div>
-                    </div>
-                    {status.balance && (
-                      <div className="text-right">
-                        <div className="text-sm text-gray-300">USDT баланс:</div>
-                        <div className="font-mono text-sm text-white">
-                          {status.balance.USDT?.total?.toFixed(2) || '0.00'}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                  {status.error && (
-                    <div className="mt-2 text-xs text-red-400">
-                      Ошибка: {status.error}
+                      <Label>Passphrase</Label>
+                      <Input
+                        type={showKeys[exchange.id] ? 'text' : 'password'}
+                        placeholder="Введите passphrase"
+                        value={apiKeys[exchange.id]?.passphrase || ''}
+                        onChange={(e) => updateApiKey(exchange.id, 'passphrase', e.target.value)}
+                      />
                     </div>
                   )}
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      checked={apiKeys[exchange.id]?.testnet || false}
+                      onChange={(e) => updateApiKey(exchange.id, 'testnet', e.target.checked)}
+                    />
+                    <Label>Testnet</Label>
+                  </div>
                 </div>
-              )}
-
-              <div className="flex space-x-3">
-                <Button
-                  onClick={() => saveApiKeys(exchange.id)}
-                  disabled={loading[exchange.id]}
-                  className="bg-blue-600 hover:bg-blue-700"
-                >
-                  {loading[exchange.id] ? '🔄 Сохранение...' : '💾 Сохранить ключи'}
-                </Button>
-
-                <Button
-                  onClick={() => checkConnection(exchange.id)}
-                  disabled={loading[`test_${exchange.id}`]}
-                  variant="outline"
-                >
-                  {loading[`test_${exchange.id}`] ? '🔄 Проверка...' : '🔍 Проверить подключение'}
-                </Button>
-                
-                {exchange.id === 'bybit' && (
-                  <Button
-                    onClick={testBybitDetailed}
-                    disabled={loading.bybit_debug}
-                    variant="outline"
-                    className="bg-red-600 hover:bg-red-700 border-red-500"
-                  >
-                    {loading.bybit_debug ? '🔬 Тестирование...' : '🔬 Детальный тест Bybit'}
-                  </Button>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        );
-      })}
-
-      {/* Инструкции */}
-      <Card className="bg-gray-800 border-gray-700">
-        <CardHeader>
-          <CardTitle className="text-white">📋 Инструкции по настройке</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4 text-gray-300">
-            <div>
-              <h4 className="font-semibold text-white mb-2">1. Создание API ключей:</h4>
-              <ul className="list-disc list-inside space-y-1 text-sm">
-                <li>Перейдите на биржу и войдите в свой аккаунт</li>
-                <li>Найдите раздел "API Management" или "API Keys"</li>
-                <li>Создайте новый API ключ с правами на торговлю</li>
-                <li>Скопируйте API Key и Secret (и Passphrase если требуется)</li>
-              </ul>
-            </div>
-            
-            <div>
-              <h4 className="font-semibold text-white mb-2">2. Настройка прав:</h4>
-              <ul className="list-disc list-inside space-y-1 text-sm">
-                <li><strong>Обязательно:</strong> Включите права на "Spot Trading" или "Trading"</li>
-                <li><strong>Рекомендуется:</strong> Включите права на "Read" для получения балансов</li>
-                <li><strong>Безопасность:</strong> НЕ включайте права на "Withdraw" (вывод средств)</li>
-              </ul>
-            </div>
-
-            <div>
-              <h4 className="font-semibold text-white mb-2">3. Особенности бирж:</h4>
-              <ul className="list-disc list-inside space-y-1 text-sm">
-                <li><strong>Gate.io, KuCoin, OKX:</strong> Требуют Passphrase (дополнительный пароль)</li>
-                <li><strong>Bybit, Binance, MEXC:</strong> Достаточно API Key и Secret</li>
-                <li><strong>Testnet:</strong> Используйте для тестирования без реальных средств</li>
-              </ul>
-            </div>
+              </Card>
+            ))}
           </div>
         </CardContent>
       </Card>

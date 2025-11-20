@@ -24,7 +24,7 @@ const TradingTab = () => {
       quoteCurrency: 'USDT',
       orderAmount: '100',
       leverage: '1',
-      side: 'buy',
+      side: 'Buy',
       stopLoss: '2',
       takeProfit: '5',
       delayMs: '1000',
@@ -35,7 +35,7 @@ const TradingTab = () => {
       quoteCurrency: 'USDT',
       orderAmount: '100',
       leverage: '1',
-      side: 'buy',
+      side: 'Buy',
       stopLoss: '2',
       takeProfit: '5',
       delayMs: '1000',
@@ -46,7 +46,7 @@ const TradingTab = () => {
       quoteCurrency: 'USDT',
       orderAmount: '100',
       leverage: '1',
-      side: 'buy',
+      side: 'Buy',
       stopLoss: '2',
       takeProfit: '5',
       delayMs: '1000',
@@ -57,7 +57,7 @@ const TradingTab = () => {
       quoteCurrency: 'USDT',
       orderAmount: '100',
       leverage: '1',
-      side: 'buy',
+      side: 'Buy',
       stopLoss: '2',
       takeProfit: '5',
       delayMs: '1000',
@@ -68,7 +68,7 @@ const TradingTab = () => {
       quoteCurrency: 'USDT',
       orderAmount: '100',
       leverage: '1',
-      side: 'buy',
+      side: 'Buy',
       stopLoss: '2',
       takeProfit: '5',
       delayMs: '1000',
@@ -79,7 +79,7 @@ const TradingTab = () => {
       quoteCurrency: 'USDT',
       orderAmount: '100',
       leverage: '1',
-      side: 'buy',
+      side: 'Buy',
       stopLoss: '2',
       takeProfit: '5',
       delayMs: '1000',
@@ -91,7 +91,7 @@ const TradingTab = () => {
   const [orderForm, setOrderForm] = useState({
     exchange: 'bybit',
     symbol: "SUPERUSDT",
-    side: 'buy',
+    side: 'Buy',
     leverage: "10",
     amount: "200",
     stopLoss: '2',
@@ -214,7 +214,6 @@ const TradingTab = () => {
       const { error } = await supabase
         .from('trading_settings_2025_11_12_05_30')
         .upsert({
-price: orderForm.exchange === "gate" ? 30000 : undefined,          type: orderForm.exchange === "gate" ? "limit" : undefined,
           user_id: user?.id,
           exchange: selectedExchange,
           base_currency: currentSettings.baseCurrency,
@@ -276,7 +275,7 @@ price: orderForm.exchange === "gate" ? 30000 : undefined,          type: orderFo
       for (const exchange of exchanges) {
         try {
       console.log("📡 ОТПРАВЛЯЕМ ЗАПРОС К EDGE FUNCTION");
-symbol: orderForm.exchange === "gate" ? orderForm.symbol.replace("USDT", "/USDT:USDT") : orderForm.symbol,
+      console.log("🎯 Параметры:", { exchange: "bybit", symbol: orderForm.symbol, leverage: orderForm.leverage, amount: orderForm.amount });
       console.log("🔍 USER ID:", user?.id);
           const { data, error } = await supabase.functions.invoke(getFunctionName(orderForm.exchange), {
             body: { action: 'check_balance', exchange: exchange.id }
@@ -305,10 +304,8 @@ symbol: orderForm.exchange === "gate" ? orderForm.symbol.replace("USDT", "/USDT:
     switch (exchange.toLowerCase()) {
       case "bybit":
         return "bybit_fixed_quantity_2025_11_13_23_50";
-      case "gate":
-        return "gate_proper_trading_2025_11_14_12_12";
       case "binance":
-        return "binance_trading_orders_2025_11_14_11_20";
+        return "bybit_fixed_quantity_2025_11_13_23_50";
       default:
         return "bybit_fixed_quantity_2025_11_13_23_50";
     }
@@ -320,20 +317,19 @@ symbol: orderForm.exchange === "gate" ? orderForm.symbol.replace("USDT", "/USDT:
     console.log("🚀 КНОПКА НАЖАТА! placeTestOrder вызвана");
     try {
       console.log("📡 ОТПРАВЛЯЕМ ЗАПРОС К EDGE FUNCTION");
-symbol: orderForm.exchange === "gate" ? orderForm.symbol.replace("USDT", "/USDT:USDT") : orderForm.symbol,
+      console.log("🎯 Параметры:", { exchange: "bybit", symbol: orderForm.symbol, leverage: orderForm.leverage, amount: orderForm.amount });
       console.log("🔍 USER ID:", user?.id);
       const { data, error } = await supabase.functions.invoke(getFunctionName(orderForm.exchange), {
         body: { 
-          action: orderForm.exchange.toLowerCase() === "gate" ? "place_test_order" : (orderForm.exchange.toLowerCase() === "binance" ? "place_test_order" : "place_test_order"), 
+          action: orderForm.exchange.toLowerCase() === "binance" ? "place_order_with_tp_sl" : "place_test_order", 
           exchange: orderForm.exchange.toLowerCase(),
-symbol: orderForm.exchange === "gate" ? orderForm.symbol.replace("USDT", "/USDT:USDT") : orderForm.symbol,
+          symbol: orderForm.symbol,
           side: orderForm.side,
           leverage: orderForm.leverage,
           amount: orderForm.amount,
           stopLoss: orderForm.stopLoss,
           takeProfit: orderForm.takeProfit,
           delayMs: orderForm.delayMs,
-price: orderForm.exchange === "gate" ? 30000 : undefined,          type: orderForm.exchange === "gate" ? "limit" : undefined,
           user_id: user?.id
         }
       });
@@ -387,15 +383,14 @@ price: orderForm.exchange === "gate" ? 30000 : undefined,          type: orderFo
     try {
       const { data, error } = await supabase.functions.invoke("mexc_bypass_futures_trading_2025_11_12_18_25", {
         body: { 
-          action: "place_test_order",
+          action: "place_order_with_tp_sl",
           exchange: "mexc",
-symbol: orderForm.exchange === "gate" ? orderForm.symbol.replace("USDT", "/USDT:USDT") : orderForm.symbol,
+          symbol: orderForm.symbol,
           side: orderForm.side,
           order_type: "LIMIT",
           leverage: orderForm.leverage,
           amount: orderForm.amount,
           order_amount_usdt: orderForm.orderAmount,
-price: orderForm.exchange === "gate" ? 30000 : undefined,          type: orderForm.exchange === "gate" ? "limit" : undefined,
           user_id: user?.id
         }
       });
@@ -449,7 +444,6 @@ price: orderForm.exchange === "gate" ? 30000 : undefined,          type: orderFo
       const { error } = await supabase
         .from('trading_settings_2025_11_12_05_30')
         .upsert({
-price: orderForm.exchange === "gate" ? 30000 : undefined,          type: orderForm.exchange === "gate" ? "limit" : undefined,
           user_id: user?.id,
           exchange: selectedExchange,
           base_currency: currentSettings.baseCurrency,
@@ -685,7 +679,6 @@ price: orderForm.exchange === "gate" ? 30000 : undefined,          type: orderFo
                     body: { 
                       action: "check_balance",
                       exchange: selectedExchange,
-price: orderForm.exchange === "gate" ? 30000 : undefined,          type: orderForm.exchange === "gate" ? "limit" : undefined,
                       user_id: user?.id
                     }
                   })
@@ -1038,7 +1031,7 @@ price: orderForm.exchange === "gate" ? 30000 : undefined,          type: orderFo
               disabled={loading.order}
               className="bg-purple-600 hover:bg-purple-700"
             >
-{loading.order ? "🔄 Размещение..." : "📝 Разместить боевой ордер"}            </Button>                        <Button              onClick={() => console.log("Закрытие позиций")}              className="bg-red-600 hover:bg-red-700"            >              🔒 Закрыть все позиции            </Button>                        <Button              onClick={() => console.log("Отмена ордеров")}              className="bg-orange-600 hover:bg-orange-700"            >              🚫 Отменить все ордера
+{loading.order ? "🔄 Размещение..." : "📝 Разместить боевой ордер"}            </Button>                        <Button              onClick={() => alert("Функция закрытия позиций в разработке")}              className="bg-red-600 hover:bg-red-700"            >              🔒 Закрыть все позиции            </Button>                        <Button              onClick={() => alert("Функция отмены ордеров в разработке")}              className="bg-orange-600 hover:bg-orange-700"            >              🚫 Отменить все ордера
             </Button>
           </div>
         </CardContent>

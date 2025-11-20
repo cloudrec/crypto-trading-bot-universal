@@ -38,17 +38,6 @@ const EXCHANGES = [
   { value: 'mexc', label: 'MEXC', icon: '🔵' }
 ];
 
-const SYMBOLS = [
-  'BTCUSDT',
-  'ETHUSDT', 
-  'BNBUSDT',
-  'ADAUSDT',
-  'DOTUSDT',
-  'SOLUSDT',
-  'AVAXUSDT',
-  'MATICUSDT'
-];
-
 const TradingForm = ({ 
   selectedExchange, 
   onExchangeChange, 
@@ -63,7 +52,8 @@ const TradingForm = ({
   // Настройки торговли
   const [settings, setSettings] = useState({
     exchange: selectedExchange,
-    symbol: 'BTCUSDT',
+    base_currency: 'BTC',
+    quote_currency: 'USDT',
     order_amount_usd: 100,
     leverage: 1,
     take_profit_percent: 0.5,
@@ -87,16 +77,21 @@ const TradingForm = ({
 
   const loadSettings = async () => {
     try {
-      const { data, error } = await supabase.functions.invoke('funding_arbitrage_bot_2025_11_12_05_20', {
-        body: { action: 'get_funding_settings' }
-      });
+      const { data, error } = await supabase
+        .from('trading_settings_2025_11_12_05_30')
+        .select('*')
+        .eq('user_id', user?.id)
+        .single();
 
-      if (error) throw error;
+      if (error && error.code !== 'PGRST116') {
+        console.error('Ошибка загрузки настроек:', error);
+        return;
+      }
       
-      if (data.success && data.settings) {
+      if (data) {
         setSettings(prev => ({ 
           ...prev, 
-          ...data.settings,
+          ...data,
           exchange: selectedExchange // Сохраняем текущую выбранную биржу
         }));
       }
@@ -107,9 +102,15 @@ const TradingForm = ({
 
   const saveSettings = async () => {
     try {
-      const { data, error } = await supabase.functions.invoke('funding_arbitrage_bot_2025_11_12_05_20', {
-        body: { action: 'update_funding_settings', ...settings }
-      });
+      const { data, error } = await supabase
+        .from('trading_settings_2025_11_12_05_30')
+        .upsert({
+          user_id: user?.id,
+          ...settings,
+          updated_at: new Date().toISOString()
+        })
+        .select()
+        .single();
 
       if (error) throw error;
       
@@ -128,8 +129,13 @@ const TradingForm = ({
 
   const startBot = async () => {
     try {
+      const symbol = `${settings.base_currency}${settings.quote_currency}`;
       const { data, error } = await supabase.functions.invoke('funding_arbitrage_bot_2025_11_12_05_20', {
-        body: { action: 'start_funding_bot', ...settings }
+        body: { 
+          action: 'start_funding_bot', 
+          ...settings,
+          symbol: symbol
+        }
       });
 
       if (error) throw error;
@@ -251,21 +257,26 @@ const TradingForm = ({
               </Select>
             </div>
 
-            {/* Символ */}
+            {/* Базовая валюта */}
             <div>
-              <Label className="text-gray-300">Торговая пара</Label>
-              <Select value={settings.symbol} onValueChange={(value) => handleSettingChange('symbol', value)}>
-                <SelectTrigger className="bg-gray-700 border-gray-600">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="bg-gray-700">
-                  {SYMBOLS.map(symbol => (
-                    <SelectItem key={symbol} value={symbol}>
-                      {symbol}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label className="text-gray-300">Базовая валюта</Label>
+              <Input
+                value={settings.base_currency}
+                onChange={(e) => handleSettingChange('base_currency', e.target.value.toUpperCase())}
+                className="bg-gray-700 border-gray-600"
+                placeholder="BTC"
+              />
+            </div>
+
+            {/* Котируемая валюта */}
+            <div>
+              <Label className="text-gray-300">Котируемая валюта</Label>
+              <Input
+                value={settings.quote_currency}
+                onChange={(e) => handleSettingChange('quote_currency', e.target.value.toUpperCase())}
+                className="bg-gray-700 border-gray-600"
+                placeholder="USDT"
+              />
             </div>
 
             {/* Сумма ордера */}
@@ -387,23 +398,25 @@ const TradingForm = ({
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <Button
-              onClick={botRunning ? stopBot : startBot}
-              disabled={loading}
-              className={botRunning ? "w-full bg-red-600 hover:bg-red-700" : "w-full bg-green-600 hover:bg-green-700"}
-            >
-              {botRunning ? (
-                <>
-                  <Square className="h-4 w-4 mr-2" />
-                  Стоп бот
-                </>
-              ) : (
-                <>
-                  <Play className="h-4 w-4 mr-2" />
-                  Запустить бот
-                </>
-              )}
-            </Button>
+            {!botRunning ? (
+              <Button
+                onClick={startBot}
+                disabled={loading}
+                className="w-full bg-green-600 hover:bg-green-700"
+              >
+                <Play className="h-4 w-4 mr-2" />
+                Запустить бот
+              </Button>
+            ) : (
+              <Button
+                onClick={stopBot}
+                disabled={loading}
+                className="w-full bg-red-600 hover:bg-red-700"
+              >
+                <Square className="h-4 w-4 mr-2" />
+                Остановить бот
+              </Button>
+            )}
             
             <Button 
               className="w-full bg-blue-600 hover:bg-blue-700" 
